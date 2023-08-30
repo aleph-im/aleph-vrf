@@ -1,7 +1,7 @@
 
 from aleph_message.models import ItemHash, PostMessage
 from pydantic import BaseModel
-from typing import Any, List
+from typing import Any, List, Optional
 from uuid import uuid4, UUID
 
 
@@ -12,6 +12,7 @@ class RandomCRN(BaseModel):
 
 class VRFRequest(BaseModel):
     number_bytes: int
+    nonce: int
     vrf_function: ItemHash
     requestId: UUID
     nodes: List[RandomCRN]
@@ -46,10 +47,12 @@ def generate_request_from_message(message: PostMessage) -> VRFGenerationRequest:
 class VRFResponseHash(BaseModel):
     num_bytes: int
     nonce: int
+    url: str
     requestId: UUID
     execution_id: UUID
     vrf_request: ItemHash
     random_bytes_hash: str
+    message_hash: Optional[str] = None
 
 
 def generate_response_hash_from_message(message: PostMessage) -> VRFResponseHash:
@@ -57,6 +60,7 @@ def generate_response_hash_from_message(message: PostMessage) -> VRFResponseHash
     return VRFResponseHash(
         num_bytes=content.num_bytes,
         nonce=content.nonce,
+        url=content.url,
         request_id=content.request_id,
         execution_id=content.execution_id,
         vrf_request=ItemHash(content.vrf_request),
@@ -65,10 +69,30 @@ def generate_response_hash_from_message(message: PostMessage) -> VRFResponseHash
 
 
 class VRFRandomBytes(BaseModel):
+    url: str
     requestId: UUID
     execution_id: UUID
     vrf_request: ItemHash
-    random_bytes: bytes
+    random_bytes: str
+    random_number: int
+    message_hash: Optional[str] = None
+
+
+class CRNVRFResponse(BaseModel):
+    url: str
+    random_number: int
+    random_bytes: str
+    random_bytes_hash: str
+
+
+class VRFResponse(BaseModel):
+    number_bytes: int
+    nonce: int
+    vrf_function: ItemHash
+    requestId: UUID
+    nodes: List[CRNVRFResponse]
+    random_number: int
+    message_hash: Optional[str] = None
 
 
 class APIResponse(BaseModel):
