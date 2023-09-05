@@ -1,16 +1,15 @@
-
 import logging
-
-from typings import Union, Optional, Dict
+from typing import Dict, Union
 
 logger = logging.getLogger(__name__)
 
 logger.debug("import aleph_client")
-from aleph.sdk.client import AlephClient, AuthenticatedAlephClient
 from aleph.sdk.chains.common import get_fallback_private_key
 from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.client import AlephClient, AuthenticatedAlephClient
 from aleph.sdk.vm.app import AlephApp
 from aleph.sdk.vm.cache import VmCache
+from aleph_message.status import MessageStatus
 
 logger.debug("import fastapi")
 from fastapi import FastAPI, Request
@@ -18,12 +17,12 @@ from fastapi import FastAPI, Request
 logger.debug("local imports")
 from models import (
     APIResponse,
+    VRFRandomBytes,
+    VRFResponseHash,
     generate_request_from_message,
     generate_response_hash_from_message,
-    VRFResponseHash,
-    VRFRandomBytes,
 )
-from utils import generate, bytes_to_int, bytes_to_binary
+from utils import bytes_to_binary, bytes_to_int, generate
 
 logger.debug("imports done")
 
@@ -43,10 +42,7 @@ SAVED_GENERATED_BYTES: Dict[str, bytes]
 async def index():
     return {
         "name": "vrf_generate_api",
-        "endpoints": [
-            "/generate/{vrf_request}",
-            "/publish/{hash_message}"
-        ],
+        "endpoints": ["/generate/{vrf_request}", "/publish/{hash_message}"],
     }
 
 
@@ -57,12 +53,16 @@ async def receive_generate(vrf_request: str, request: Request) -> APIResponse:
     private_key = get_fallback_private_key()
     account = ETHAccount(private_key=private_key)
 
-    async with AlephClient() as client:
+    async with AlephClient(api_server=API_HOST) as client:
         message = await client.get_message(item_hash=vrf_request)
         generation_request = generate_request_from_message(message)
 
-        generated_bytes, hashed_bytes = generate(generation_request.num_bytes, generation_request.nonce)
-        SAVED_GENERATED_BYTES[generation_request.execution_id] = generated_bytes
+        generated_bytes, hashed_bytes = generate(
+            generation_request.num_bytes, generation_request.nonce
+        )
+        SAVED_GENERATED_BYTES[
+            generation_request.execution_id.__str__()
+        ] = generated_bytes
 
         response_hash = VRFResponseHash(
             num_bytes=generation_request.num_bytes,
@@ -71,22 +71,21 @@ async def receive_generate(vrf_request: str, request: Request) -> APIResponse:
             request_id=generation_request.request_id,
             execution_id=generation_request.execution_id,
             vrf_request=vrf_request,
-            random_bytes_hash=hashed_bytes
+            random_bytes_hash=hashed_bytes,
         )
 
-        ref = f"vrf" \
-              f"_{response_hash.requestId.__str__()}" \
-              f"_{response_hash.execution_id.__str__()}" \
-              f"_{GENERATE_MESSAGE_REF_PATH}"
+        ref = (
+            f"vrf"
+            f"_{response_hash.request_id.__str__()}"
+            f"_{response_hash.execution_id.__str__()}"
+            f"_{GENERATE_MESSAGE_REF_PATH}"
+        )
 
         message_hash = await publish_data(response_hash, ref, account)
 
         response_hash.message_hash = message_hash
 
-        return APIResponse(
-            error=False,
-            data=response_hash
-        )
+        return APIResponse(data=response_hash)
 
 
 @app.post("/publish/{hash_message}")
@@ -96,14 +95,18 @@ async def receive_publish(hash_message: str, request: Request) -> APIResponse:
     private_key = get_fallback_private_key()
     account = ETHAccount(private_key=private_key)
 
-    async with AlephClient() as client:
+    async with AlephClient(api_server=API_HOST) as client:
         message = await client.get_message(item_hash=hash_message)
         response_hash = generate_response_hash_from_message(message)
 
-        if not SAVED_GENERATED_BYTES[response_hash.execution_id]:
-            raise ValueError(f"Random bytes not existing for execution {response_hash.execution_id}")
+        if not SAVED_GENERATED_BYTES[response_hash.execution_id.__str__()]:
+            raise ValueError(
+                f"Random bytes not existing for execution {response_hash.execution_id}"
+            )
 
-        random_bytes: bytes = SAVED_GENERATED_BYTES[response_hash.execution_id]
+        random_bytes: bytes = SAVED_GENERATED_BYTES[
+            response_hash.execution_id.__str__()
+        ]
 
         response_bytes = VRFRandomBytes(
             url=str(request.url),
@@ -115,30 +118,31 @@ async def receive_publish(hash_message: str, request: Request) -> APIResponse:
             random_number=bytes_to_int(random_bytes),
         )
 
-        ref = f"vrf_{response_hash.requestId.__str__()}_{response_hash.execution_id.__str__()}"
+        ref = f"vrf_{response_hash.request_id.__str__()}_{response_hash.execution_id.__str__()}"
 
         message_hash = await publish_data(response_bytes, ref, account)
 
         response_bytes.message_hash = message_hash
 
-        return APIResponse(
-            error=False,
-            data=response_bytes
-        )
+        return APIResponse(data=response_bytes)
 
 
-async def publish_data(data: Union[VRFResponseHash, VRFRandomBytes], ref: str, account: ETHAccount):
+async def publish_data(
+    data: Union[VRFResponseHash, VRFRandomBytes], ref: str, account: ETHAccount
+):
+    channel = f"vrf_{data.request_id.__str__()}"
 
-    channel = f"vrf_{data.requestId.__str__()}"
-
-    async with AuthenticatedAlephClient(
-            account=account, api_server=API_HOST
-    ) as client:
+    async with AuthenticatedAlephClient(account=account, api_server=API_HOST) as client:
         message, status = await client.create_post(
-            content=data,
+            post_type="vrf_generation_post",
+            post_content=data,
             channel=channel,
             ref=ref,
         )
 
-        # TODO: Check message status
-        return message["item_hash"]
+        if status != MessageStatus.PROCESSED:
+            raise ValueError(
+                f"Message could not be processed for request {data.request_id} and execution_id {data.execution_id}"
+            )
+
+        return message.item_hash.__str__()

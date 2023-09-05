@@ -1,4 +1,3 @@
-
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,9 +12,7 @@ logger.debug("import fastapi")
 from fastapi import FastAPI
 
 logger.debug("local imports")
-from models import (
-    APIResponse,
-)
+from models import APIResponse
 from vrf import generate_vrf
 
 logger.debug("imports done")
@@ -42,7 +39,4 @@ async def receive_vrf() -> APIResponse:
 
     vrf_response = await generate_vrf(account)
 
-    return APIResponse(
-        error=False,
-        data=vrf_response
-    )
+    return APIResponse(data=vrf_response)

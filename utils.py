@@ -1,13 +1,8 @@
 from hashlib import sha3_256
 from random import randint
 from typing import List
+
 from utilitybelt import dev_urandom_entropy
-
-
-def first(iterable, default=None):
-    for item in iterable:
-        return item
-    return default
 
 
 def xor_all(x: List[bytes]) -> bytes:
@@ -20,17 +15,17 @@ def xor_all(x: List[bytes]) -> bytes:
 
 def int_to_bytes(x: int) -> bytes:
     """Converts an integer to bytes."""
-    return x.to_bytes((x.bit_length() + 7) // 8, 'big')
+    return x.to_bytes((x.bit_length() + 7) // 8, "big")
 
 
 def bytes_to_int(x: bytes) -> int:
     """Converts bytes to an integer."""
-    return int.from_bytes(x, 'big')
+    return int.from_bytes(x, "big")
 
 
 def bytes_to_binary(x: bytes) -> str:
     """Converts bytes to a binary string."""
-    return ''.join(format(b, '08b') for b in x)
+    return "".join(format(b, "08b") for b in x)
 
 
 def generate_nonce() -> int:
