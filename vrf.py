@@ -28,9 +28,13 @@ async def post_node_vrf(session, url):
         return response['data']
 
 
+async def select_random_nodes():
+    return []
+
+
 async def generate_vrf(account: ETHAccount) -> VRFResponse:
     # TODO: Select random nodes
-    selected_nodes = []
+    selected_nodes = select_random_nodes()
 
     nonce = generate_nonce()
 
@@ -41,7 +45,9 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
         nodes=sha3_256(selected_nodes),
     )
 
-    request_item_hash = await publish_data(vrf_request, account)
+    ref = f"vrf_{vrf_request.requestId.__str__()}_request"
+
+    request_item_hash = await publish_data(vrf_request, ref, account)
 
     generate_tasks = []
     publish_tasks = []
@@ -71,7 +77,11 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
             if not vrf_generate_response:
                 raise ValueError(f"Publish response not found for {vrf_publish_response.url}")
 
-            verified = verify(vrf_publish_response.random_bytes, nonce, vrf_generate_response.random_bytes_hash)
+            if vrf_generate_response.random_bytes_hash != vrf_publish_response.random_bytes_hash:
+                raise ValueError(f"Publish response hash ({vrf_publish_response.random_bytes_hash})"
+                                 f"different from generated one ({vrf_generate_response.random_bytes_hash})")
+
+            verified = verify(vrf_publish_response.random_bytes, nonce, vrf_publish_response.random_bytes_hash)
             if not verified:
                 raise ValueError(f"Failed hash verification for {vrf_publish_response.url}")
 
@@ -79,6 +89,7 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
 
             node_response = CRNVRFResponse(
                 url=vrf_publish_response.url,
+                execution_id=vrf_publish_response.execution_id,
                 random_number=vrf_publish_response.random_number,
                 random_bytes=vrf_publish_response.random_bytes,
                 random_bytes_hash=vrf_generate_response.random_bytes_hash,
@@ -97,14 +108,16 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
             random_number=final_random_number,
         )
 
-        response_item_hash = await publish_data(vrf_response, account)
+        ref = f"vrf_{vrf_response.requestId.__str__()}"
+
+        response_item_hash = await publish_data(vrf_response, ref, account)
 
         vrf_response.message_hash = response_item_hash
 
         return vrf_response
 
 
-async def publish_data(data: Union[VRFRequest, VRFResponse], account: ETHAccount):
+async def publish_data(data: Union[VRFRequest, VRFResponse], ref: str, account: ETHAccount):
 
     channel = f"vrf_{data.requestId.__str__()}"
 
@@ -114,6 +127,7 @@ async def publish_data(data: Union[VRFRequest, VRFResponse], account: ETHAccount
         message, status = await client.create_post(
             content=data,
             channel=channel,
+            ref=ref,
         )
 
         # TODO: Check message status

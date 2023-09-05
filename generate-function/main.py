@@ -1,7 +1,7 @@
 
 import logging
 
-from typings import Union, Optional
+from typings import Union, Optional, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +33,11 @@ cache = VmCache()
 
 # TODO: Use environment settings
 API_HOST = "https://api2.aleph.im"
+GENERATE_MESSAGE_REF_PATH = "hash"
 
 # TODO: Use another method to save the data
-SAVED_GENERATED_BYTES: Optional[bytes]
+SAVED_GENERATED_BYTES: Dict[str, bytes]
+
 
 @app.get("/")
 async def index():
@@ -60,7 +62,7 @@ async def receive_generate(vrf_request: str, request: Request) -> APIResponse:
         generation_request = generate_request_from_message(message)
 
         generated_bytes, hashed_bytes = generate(generation_request.num_bytes, generation_request.nonce)
-        SAVED_GENERATED_BYTES = generated_bytes
+        SAVED_GENERATED_BYTES[generation_request.execution_id] = generated_bytes
 
         response_hash = VRFResponseHash(
             num_bytes=generation_request.num_bytes,
@@ -72,7 +74,12 @@ async def receive_generate(vrf_request: str, request: Request) -> APIResponse:
             random_bytes_hash=hashed_bytes
         )
 
-        message_hash = await publish_data(response_hash, account)
+        ref = f"vrf" \
+              f"_{response_hash.requestId.__str__()}" \
+              f"_{response_hash.execution_id.__str__()}" \
+              f"_{GENERATE_MESSAGE_REF_PATH}"
+
+        message_hash = await publish_data(response_hash, ref, account)
 
         response_hash.message_hash = message_hash
 
@@ -93,10 +100,10 @@ async def receive_publish(hash_message: str, request: Request) -> APIResponse:
         message = await client.get_message(item_hash=hash_message)
         response_hash = generate_response_hash_from_message(message)
 
-        if not SAVED_GENERATED_BYTES:
-            raise ValueError("Random bytes not existing")
+        if not SAVED_GENERATED_BYTES[response_hash.execution_id]:
+            raise ValueError(f"Random bytes not existing for execution {response_hash.execution_id}")
 
-        random_bytes: bytes = SAVED_GENERATED_BYTES
+        random_bytes: bytes = SAVED_GENERATED_BYTES[response_hash.execution_id]
 
         response_bytes = VRFRandomBytes(
             url=str(request.url),
@@ -104,10 +111,13 @@ async def receive_publish(hash_message: str, request: Request) -> APIResponse:
             execution_id=response_hash.execution_id,
             vrf_request=response_hash.vrf_request,
             random_bytes=bytes_to_binary(random_bytes),
+            random_bytes_hash=response_hash.random_bytes_hash,
             random_number=bytes_to_int(random_bytes),
         )
 
-        message_hash = await publish_data(response_bytes, account)
+        ref = f"vrf_{response_hash.requestId.__str__()}_{response_hash.execution_id.__str__()}"
+
+        message_hash = await publish_data(response_bytes, ref, account)
 
         response_bytes.message_hash = message_hash
 
@@ -117,7 +127,7 @@ async def receive_publish(hash_message: str, request: Request) -> APIResponse:
         )
 
 
-async def publish_data(data: Union[VRFResponseHash, VRFRandomBytes], account: ETHAccount):
+async def publish_data(data: Union[VRFResponseHash, VRFRandomBytes], ref: str, account: ETHAccount):
 
     channel = f"vrf_{data.requestId.__str__()}"
 
@@ -127,6 +137,7 @@ async def publish_data(data: Union[VRFResponseHash, VRFRandomBytes], account: ET
         message, status = await client.create_post(
             content=data,
             channel=channel,
+            ref=ref,
         )
 
         # TODO: Check message status

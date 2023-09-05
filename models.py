@@ -74,12 +74,14 @@ class VRFRandomBytes(BaseModel):
     execution_id: UUID
     vrf_request: ItemHash
     random_bytes: str
+    random_bytes_hash: str
     random_number: int
     message_hash: Optional[str] = None
 
 
 class CRNVRFResponse(BaseModel):
     url: str
+    execution_id: UUID
     random_number: int
     random_bytes: str
     random_bytes_hash: str
