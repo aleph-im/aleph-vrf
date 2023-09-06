@@ -1,6 +1,6 @@
 import asyncio
-from hashlib import sha3_256
 import random
+from hashlib import sha3_256
 from typing import Dict, List, Union, Any
 
 import aiohttp
@@ -17,14 +17,9 @@ from aleph_vrf.models import (
     VRFResponse,
     VRFResponseHash,
 )
+from aleph_vrf.settings import settings
 from aleph_vrf.utils import bytes_to_int, generate_nonce, int_to_bytes, verify, xor_all
 
-# TODO: Use environment settings
-API_HOST = "https://api2.aleph.im"
-API_PATH = "api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel&limit=50"
-NUM_RANDOM_NODES = 32
-NUM_BYTES = 32
-VRF_FUNCTION = "0x111111111111111111111111"
 VRF_FUNCTION_GENERATE_PATH = "/generate"
 VRF_FUNCTION_PUBLISH_PATH = "/publish"
 
@@ -39,8 +34,11 @@ async def post_node_vrf(session, url):
 
 
 async def _get_corechannel_aggregate() -> Dict[str, Any]:
-    async with aiohttp.ClientSession() as session:
-        url = f"{API_HOST}/{API_PATH}"
+    async with aiohttp.ClientSession(settings.API_HOST) as session:
+        url = (
+            f"/api/v0/aggregates/{settings.CORECHANNEL_AGGREGATE_ADDRESS}.json?"
+            f"keys={settings.CORECHANNEL_AGGREGATE_KEY}"
+        )
         async with session.get(url) as response:
             if response.status != 200:
                 raise ValueError(f"CRN list not available")
@@ -74,14 +72,14 @@ async def select_random_nodes(node_amount: int) -> List[Node]:
 
 
 async def generate_vrf(account: ETHAccount) -> VRFResponse:
-    selected_nodes = await select_random_nodes(NUM_RANDOM_NODES)
+    selected_nodes = await select_random_nodes(settings.NB_EXECUTORS)
 
     nonce = generate_nonce()
 
     vrf_request = VRFRequest(
-        num_bytes=NUM_BYTES,
+        num_bytes=settings.NB_BYTES,
         nonce=nonce,
-        vrf_function=VRF_FUNCTION,
+        vrf_function=settings.FUNCTION,
         nodes=sha3_256(selected_nodes),
     )
 
@@ -190,9 +188,9 @@ def generate_final_vrf(
     final_random_number = bytes_to_int(final_random_number_bytes)
 
     return VRFResponse(
-        num_bytes=NUM_BYTES,
+        num_bytes=settings.NB_BYTES,
         nonce=nonce,
-        vrf_function=VRF_FUNCTION,
+        vrf_function=settings.FUNCTION,
         request_id=vrf_request.request_id,
         nodes=nodes_responses,
         random_number=final_random_number,
@@ -204,7 +202,9 @@ async def publish_data(
 ) -> ItemHash:
     channel = f"vrf_{data.request_id}"
 
-    async with AuthenticatedAlephClient(account=account, api_server=API_HOST) as client:
+    async with AuthenticatedAlephClient(
+        account=account, api_server=settings.API_HOST
+    ) as client:
         message, status = await client.create_post(
             post_type="vrf_library_post",
             post_content=data,

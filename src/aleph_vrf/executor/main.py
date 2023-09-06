@@ -3,6 +3,8 @@ from typing import Dict, Union
 
 from aleph_message.models import ItemHash
 
+from aleph_vrf.settings import settings
+
 logger = logging.getLogger(__name__)
 
 logger.debug("import aleph_client")
@@ -32,8 +34,6 @@ http_app = FastAPI()
 app = AlephApp(http_app=http_app)
 cache = VmCache()
 
-# TODO: Use environment settings
-API_HOST = "https://api2.aleph.im"
 GENERATE_MESSAGE_REF_PATH = "hash"
 
 # TODO: Use another method to save the data
@@ -55,7 +55,7 @@ async def receive_generate(vrf_request: str, request: Request) -> APIResponse:
     private_key = get_fallback_private_key()
     account = ETHAccount(private_key=private_key)
 
-    async with AlephClient(api_server=API_HOST) as client:
+    async with AlephClient(api_server=settings.API_HOST) as client:
         message = await client.get_message(item_hash=vrf_request)
         generation_request = generate_request_from_message(message)
 
@@ -97,7 +97,7 @@ async def receive_publish(hash_message: str, request: Request) -> APIResponse:
     private_key = get_fallback_private_key()
     account = ETHAccount(private_key=private_key)
 
-    async with AlephClient(api_server=API_HOST) as client:
+    async with AlephClient(api_server=settings.API_HOST) as client:
         message = await client.get_message(item_hash=hash_message)
         response_hash = generate_response_hash_from_message(message)
 
@@ -130,11 +130,11 @@ async def receive_publish(hash_message: str, request: Request) -> APIResponse:
 
 
 async def publish_data(
-    data: Union[VRFResponseHash, VRFRandomBytes], ref: str, account: ETHAccount
+        data: Union[VRFResponseHash, VRFRandomBytes], ref: str, account: ETHAccount
 ) -> ItemHash:
     channel = f"vrf_{data.request_id}"
 
-    async with AuthenticatedAlephClient(account=account, api_server=API_HOST) as client:
+    async with AuthenticatedAlephClient(account=account, api_server=settings.API_HOST) as client:
         message, status = await client.create_post(
             post_type="vrf_generation_post",
             post_content=data,
