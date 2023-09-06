@@ -15,14 +15,14 @@ logger.debug("import fastapi")
 from fastapi import FastAPI, Request
 
 logger.debug("local imports")
-from models import (
+from aleph_vrf.models import (
     APIResponse,
     VRFRandomBytes,
     VRFResponseHash,
     generate_request_from_message,
     generate_response_hash_from_message,
 )
-from utils import bytes_to_binary, bytes_to_int, generate
+from aleph_vrf.utils import bytes_to_binary, bytes_to_int, generate
 
 logger.debug("imports done")
 

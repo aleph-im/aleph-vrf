@@ -1,14 +1,14 @@
 import asyncio
 from hashlib import sha3_256
-from random import shuffle
-from typing import Dict, List, Union
+import random
+from typing import Dict, List, Union, Any
 
 import aiohttp
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client import AuthenticatedAlephClient
 from aleph_message.status import MessageStatus
 
-from models import (
+from aleph_vrf.models import (
     CRNVRFResponse,
     Node,
     VRFRandomBytes,
@@ -16,7 +16,7 @@ from models import (
     VRFResponse,
     VRFResponseHash,
 )
-from utils import bytes_to_int, generate_nonce, int_to_bytes, verify, xor_all
+from aleph_vrf.utils import bytes_to_int, generate_nonce, int_to_bytes, verify, xor_all
 
 # TODO: Use environment settings
 API_HOST = "https://api2.aleph.im"
@@ -37,41 +37,39 @@ async def post_node_vrf(session, url):
         return response["data"]
 
 
-async def select_random_nodes(node_amount: int) -> List[Node]:
-    node_list: List[Node] = []
-
+async def _get_corechannel_aggregate() -> Dict[str, Any]:
     async with aiohttp.ClientSession() as session:
         url = f"{API_HOST}/{API_PATH}"
         async with session.get(url) as response:
             if response.status != 200:
                 raise ValueError(f"CRN list not available")
 
-            content = await response.json()
+            return await response.json()
 
-            if (
-                not content["data"]["corechannel"]
-                or not content["data"]["corechannel"]["resource_nodes"]
-            ):
-                raise ValueError(f"Bad CRN list format")
 
-            resource_nodes = content["data"]["corechannel"]["resource_nodes"]
+async def select_random_nodes(node_amount: int) -> List[Node]:
+    node_list: List[Node] = []
 
-            for resource_node in resource_nodes:
-                node = Node(
-                    hash=resource_node["hash"],
-                    address=resource_node["address"],
-                    score=resource_node["score"],
-                )
-                node_list.append(node)
+    content = await _get_corechannel_aggregate()
 
-            # Randomize node order
-            shuffle(node_list)
+    if (
+        not content["data"]["corechannel"]
+        or not content["data"]["corechannel"]["resource_nodes"]
+    ):
+        raise ValueError(f"Bad CRN list format")
 
-            random_nodes: List[Node] = []
-            for node in range(node_amount):
-                random_nodes.append(node_list[node])
+    resource_nodes = content["data"]["corechannel"]["resource_nodes"]
 
-            return random_nodes
+    for resource_node in resource_nodes:
+        node = Node(
+            hash=resource_node["hash"],
+            address=resource_node["address"],
+            score=resource_node["score"],
+        )
+        node_list.append(node)
+
+    # Randomize node order
+    return random.sample(node_list, min(node_amount, len(node_list)))
 
 
 async def generate_vrf(account: ETHAccount) -> VRFResponse:
