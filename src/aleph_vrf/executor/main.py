@@ -1,6 +1,8 @@
 import logging
 from typing import Dict, Union
 
+from aleph_message.models import ItemHash
+
 logger = logging.getLogger(__name__)
 
 logger.debug("import aleph_client")
@@ -61,7 +63,7 @@ async def receive_generate(vrf_request: str, request: Request) -> APIResponse:
             generation_request.num_bytes, generation_request.nonce
         )
         SAVED_GENERATED_BYTES[
-            generation_request.execution_id.__str__()
+            str(generation_request.execution_id)
         ] = generated_bytes
 
         response_hash = VRFResponseHash(
@@ -76,8 +78,8 @@ async def receive_generate(vrf_request: str, request: Request) -> APIResponse:
 
         ref = (
             f"vrf"
-            f"_{response_hash.request_id.__str__()}"
-            f"_{response_hash.execution_id.__str__()}"
+            f"_{response_hash.request_id}"
+            f"_{response_hash.execution_id}"
             f"_{GENERATE_MESSAGE_REF_PATH}"
         )
 
@@ -99,13 +101,13 @@ async def receive_publish(hash_message: str, request: Request) -> APIResponse:
         message = await client.get_message(item_hash=hash_message)
         response_hash = generate_response_hash_from_message(message)
 
-        if not SAVED_GENERATED_BYTES[response_hash.execution_id.__str__()]:
+        if not SAVED_GENERATED_BYTES[str(response_hash.execution_id)]:
             raise ValueError(
                 f"Random bytes not existing for execution {response_hash.execution_id}"
             )
 
         random_bytes: bytes = SAVED_GENERATED_BYTES[
-            response_hash.execution_id.__str__()
+            str(response_hash.execution_id)
         ]
 
         response_bytes = VRFRandomBytes(
@@ -118,7 +120,7 @@ async def receive_publish(hash_message: str, request: Request) -> APIResponse:
             random_number=bytes_to_int(random_bytes),
         )
 
-        ref = f"vrf_{response_hash.request_id.__str__()}_{response_hash.execution_id.__str__()}"
+        ref = f"vrf_{response_hash.request_id}_{response_hash.execution_id}"
 
         message_hash = await publish_data(response_bytes, ref, account)
 
@@ -129,8 +131,8 @@ async def receive_publish(hash_message: str, request: Request) -> APIResponse:
 
 async def publish_data(
     data: Union[VRFResponseHash, VRFRandomBytes], ref: str, account: ETHAccount
-):
-    channel = f"vrf_{data.request_id.__str__()}"
+) -> ItemHash:
+    channel = f"vrf_{data.request_id}"
 
     async with AuthenticatedAlephClient(account=account, api_server=API_HOST) as client:
         message, status = await client.create_post(
@@ -145,4 +147,4 @@ async def publish_data(
                 f"Message could not be processed for request {data.request_id} and execution_id {data.execution_id}"
             )
 
-        return message.item_hash.__str__()
+        return message.item_hash

@@ -6,6 +6,7 @@ from typing import Dict, List, Union, Any
 import aiohttp
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client import AuthenticatedAlephClient
+from aleph_message.models import ItemHash
 from aleph_message.status import MessageStatus
 
 from aleph_vrf.models import (
@@ -84,7 +85,7 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
         nodes=sha3_256(selected_nodes),
     )
 
-    ref = f"vrf_{vrf_request.request_id.__str__()}_request"
+    ref = f"vrf_{vrf_request.request_id}_request"
 
     request_item_hash = await publish_data(vrf_request, ref, account)
 
@@ -104,7 +105,7 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
             vrf_request,
         )
 
-        ref = f"vrf_{vrf_response.request_id.__str__()}"
+        ref = f"vrf_{vrf_response.request_id}"
 
         response_item_hash = await publish_data(vrf_response, ref, account)
 
@@ -200,8 +201,8 @@ def generate_final_vrf(
 
 async def publish_data(
     data: Union[VRFRequest, VRFResponse], ref: str, account: ETHAccount
-):
-    channel = f"vrf_{data.request_id.__str__()}"
+) -> ItemHash:
+    channel = f"vrf_{data.request_id}"
 
     async with AuthenticatedAlephClient(account=account, api_server=API_HOST) as client:
         message, status = await client.create_post(
@@ -214,4 +215,4 @@ async def publish_data(
         if status != MessageStatus.PROCESSED:
             raise ValueError(f"Message could not be processed for ref {ref}")
 
-        return message.item_hash.__str__()
+        return message.item_hash
