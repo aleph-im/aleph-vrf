@@ -29,7 +29,6 @@ class VRFGenerationRequest(BaseModel):
 
 def generate_request_from_message(message: PostMessage) -> VRFGenerationRequest:
     content = message.content.content
-    print(content)
     return VRFGenerationRequest(
         nb_bytes=content["nb_bytes"],
         nonce=content["nonce"],
