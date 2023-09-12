@@ -54,7 +54,6 @@ def generate_response_hash_from_message(message: PostMessage) -> VRFResponseHash
     return VRFResponseHash(
         nb_bytes=content["nb_bytes"],
         nonce=content["nonce"],
-        url=content["url"],
         request_id=content["request_id"],
         execution_id=content["execution_id"],
         vrf_request=ItemHash(content["vrf_request"]),
