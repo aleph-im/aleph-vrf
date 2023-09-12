@@ -14,7 +14,8 @@ class Settings(BaseSettings):
         "corechannel", description="Key for the `corechannel` aggregate."
     )
     FUNCTION: str = Field(
-        "0x111111111111111111111111", description="VRF function to use."
+        "67705389842a0a1b95eaa408b009741027964edc805997475e95c505d642edd8",
+        description="VRF function to use.",
     )
     NB_EXECUTORS: int = Field(32, description="Number of executors to use.")
     NB_BYTES: int = Field(

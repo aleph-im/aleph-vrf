@@ -12,11 +12,10 @@ from aleph.sdk.chains.common import get_fallback_private_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client import AlephClient, AuthenticatedAlephClient
 from aleph.sdk.vm.app import AlephApp
-from aleph.sdk.vm.cache import VmCache
 from aleph_message.status import MessageStatus
 
 logger.debug("import fastapi")
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 
 logger.debug("local imports")
 from aleph_vrf.models import (
@@ -32,12 +31,11 @@ logger.debug("imports done")
 
 http_app = FastAPI()
 app = AlephApp(http_app=http_app)
-cache = VmCache()
 
 GENERATE_MESSAGE_REF_PATH = "hash"
 
 # TODO: Use another method to save the data
-SAVED_GENERATED_BYTES: Dict[str, bytes]
+SAVED_GENERATED_BYTES: Dict[str, bytes] = {}
 
 
 @app.get("/")
@@ -49,7 +47,7 @@ async def index():
 
 
 @app.post("/generate/{vrf_request}")
-async def receive_generate(vrf_request: str, request: Request) -> APIResponse:
+async def receive_generate(vrf_request: str) -> APIResponse:
     global SAVED_GENERATED_BYTES
 
     private_key = get_fallback_private_key()
@@ -60,16 +58,13 @@ async def receive_generate(vrf_request: str, request: Request) -> APIResponse:
         generation_request = generate_request_from_message(message)
 
         generated_bytes, hashed_bytes = generate(
-            generation_request.num_bytes, generation_request.nonce
+            generation_request.nb_bytes, generation_request.nonce
         )
-        SAVED_GENERATED_BYTES[
-            str(generation_request.execution_id)
-        ] = generated_bytes
+        SAVED_GENERATED_BYTES[str(generation_request.execution_id)] = generated_bytes
 
         response_hash = VRFResponseHash(
-            num_bytes=generation_request.num_bytes,
+            nb_bytes=generation_request.nb_bytes,
             nonce=generation_request.nonce,
-            url=str(request.url),
             request_id=generation_request.request_id,
             execution_id=generation_request.execution_id,
             vrf_request=vrf_request,
@@ -91,7 +86,7 @@ async def receive_generate(vrf_request: str, request: Request) -> APIResponse:
 
 
 @app.post("/publish/{hash_message}")
-async def receive_publish(hash_message: str, request: Request) -> APIResponse:
+async def receive_publish(hash_message: str) -> APIResponse:
     global SAVED_GENERATED_BYTES
 
     private_key = get_fallback_private_key()
@@ -106,12 +101,9 @@ async def receive_publish(hash_message: str, request: Request) -> APIResponse:
                 f"Random bytes not existing for execution {response_hash.execution_id}"
             )
 
-        random_bytes: bytes = SAVED_GENERATED_BYTES[
-            str(response_hash.execution_id)
-        ]
+        random_bytes: bytes = SAVED_GENERATED_BYTES[str(response_hash.execution_id)]
 
         response_bytes = VRFRandomBytes(
-            url=str(request.url),
             request_id=response_hash.request_id,
             execution_id=response_hash.execution_id,
             vrf_request=response_hash.vrf_request,
@@ -130,16 +122,19 @@ async def receive_publish(hash_message: str, request: Request) -> APIResponse:
 
 
 async def publish_data(
-        data: Union[VRFResponseHash, VRFRandomBytes], ref: str, account: ETHAccount
+    data: Union[VRFResponseHash, VRFRandomBytes], ref: str, account: ETHAccount
 ) -> ItemHash:
     channel = f"vrf_{data.request_id}"
 
-    async with AuthenticatedAlephClient(account=account, api_server=settings.API_HOST) as client:
+    async with AuthenticatedAlephClient(
+        account=account, api_server=settings.API_HOST
+    ) as client:
         message, status = await client.create_post(
             post_type="vrf_generation_post",
             post_content=data,
             channel=channel,
             ref=ref,
+            sync=True,
         )
 
         if status != MessageStatus.PROCESSED:

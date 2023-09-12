@@ -1,13 +1,16 @@
 import asyncio
+import json
 import random
 from hashlib import sha3_256
-from typing import Dict, List, Union, Any
+from typing import Any, Dict, List, Union
+from uuid import UUID, uuid4
 
 import aiohttp
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client import AuthenticatedAlephClient
 from aleph_message.models import ItemHash
 from aleph_message.status import MessageStatus
+from pydantic.json import pydantic_encoder
 
 from aleph_vrf.models import (
     CRNVRFResponse,
@@ -73,14 +76,18 @@ async def select_random_nodes(node_amount: int) -> List[Node]:
 
 async def generate_vrf(account: ETHAccount) -> VRFResponse:
     selected_nodes = await select_random_nodes(settings.NB_EXECUTORS)
+    selected_node_list = json.dumps(selected_nodes, default=pydantic_encoder).encode(
+        encoding="utf-8"
+    )
 
     nonce = generate_nonce()
 
     vrf_request = VRFRequest(
-        num_bytes=settings.NB_BYTES,
+        nb_bytes=settings.NB_BYTES,
         nonce=nonce,
-        vrf_function=settings.FUNCTION,
-        nodes=sha3_256(selected_nodes),
+        vrf_function=ItemHash(settings.FUNCTION),
+        request_id=str(uuid4()),
+        node_list_hash=sha3_256(selected_node_list).hexdigest(),
     )
 
     ref = f"vrf_{vrf_request.request_id}_request"
@@ -184,11 +191,11 @@ def generate_final_vrf(
         )
         nodes_responses.append(node_response)
 
-    final_random_number_bytes = xor_all(random_numbers_list)
-    final_random_number = bytes_to_int(final_random_number_bytes)
+    final_random_nb_bytes = xor_all(random_numbers_list)
+    final_random_number = bytes_to_int(final_random_nb_bytes)
 
     return VRFResponse(
-        num_bytes=settings.NB_BYTES,
+        nb_bytes=settings.NB_BYTES,
         nonce=nonce,
         vrf_function=settings.FUNCTION,
         request_id=vrf_request.request_id,
@@ -210,9 +217,12 @@ async def publish_data(
             post_content=data,
             channel=channel,
             ref=ref,
+            sync=True,
         )
 
         if status != MessageStatus.PROCESSED:
-            raise ValueError(f"Message could not be processed for ref {ref}")
+            raise ValueError(
+                f"Message could not be processed for ref {ref} and item_hash {message.item_hash}"
+            )
 
         return message.item_hash
