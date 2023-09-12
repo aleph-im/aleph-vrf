@@ -74,8 +74,15 @@ async def select_random_nodes(node_amount: int) -> List[Node]:
     return random.sample(node_list, min(node_amount, len(node_list)))
 
 
+async def select_nodes() -> List[Node]:
+    if settings.EXECUTORS == "dynamic":
+        return await select_random_nodes(settings.NB_EXECUTORS)
+
+    return settings.EXECUTORS
+
+
 async def generate_vrf(account: ETHAccount) -> VRFResponse:
-    selected_nodes = await select_random_nodes(settings.NB_EXECUTORS)
+    selected_nodes = await select_nodes()
     selected_node_list = json.dumps(selected_nodes, default=pydantic_encoder).encode(
         encoding="utf-8"
     )
@@ -85,7 +92,7 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
     vrf_request = VRFRequest(
         nb_bytes=settings.NB_BYTES,
         nonce=nonce,
-        vrf_function=ItemHash(settings.FUNCTION),
+        vrf_function=ItemHash(settings.EXECUTOR_VM_HASH),
         request_id=str(uuid4()),
         node_list_hash=sha3_256(selected_node_list).hexdigest(),
     )
@@ -197,7 +204,7 @@ def generate_final_vrf(
     return VRFResponse(
         nb_bytes=settings.NB_BYTES,
         nonce=nonce,
-        vrf_function=settings.FUNCTION,
+        vrf_function=settings.EXECUTOR_VM_HASH,
         request_id=vrf_request.request_id,
         nodes=nodes_responses,
         random_number=final_random_number,
