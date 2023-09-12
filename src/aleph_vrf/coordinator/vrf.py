@@ -1,5 +1,7 @@
 import asyncio
 import json
+import logging
+
 import random
 from hashlib import sha3_256
 from typing import Any, Dict, List, Union
@@ -25,6 +27,9 @@ from aleph_vrf.utils import bytes_to_int, generate_nonce, int_to_bytes, verify, 
 
 VRF_FUNCTION_GENERATE_PATH = "/generate"
 VRF_FUNCTION_PUBLISH_PATH = "/publish"
+
+
+logger = logging.getLogger(__name__)
 
 
 async def post_node_vrf(session, url):
@@ -93,6 +98,8 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
     ref = f"vrf_{vrf_request.request_id}_request"
 
     request_item_hash = await publish_data(vrf_request, ref, account)
+
+    logger.debug(f"Generated VRF request with item_hash {request_item_hash}")
 
     async with aiohttp.ClientSession() as session:
         vrf_generated_result = await send_generate_requests(
@@ -208,6 +215,8 @@ async def publish_data(
     data: Union[VRFRequest, VRFResponse], ref: str, account: ETHAccount
 ) -> ItemHash:
     channel = f"vrf_{data.request_id}"
+
+    logger.debug(f"Publishing message to {settings.API_HOST}")
 
     async with AuthenticatedAlephClient(
         account=account, api_server=settings.API_HOST

@@ -1,0 +1,5 @@
+aleph-sdk-python==0.7.0
+fastapi
+python-multipart
+utilitybelt
+aiohttp
