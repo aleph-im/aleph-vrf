@@ -1,8 +1,6 @@
 import logging
 from typing import Dict, Union
 
-from aleph_message.models import ItemHash
-
 from aleph_vrf.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -12,6 +10,7 @@ from aleph.sdk.chains.common import get_fallback_private_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client import AlephClient, AuthenticatedAlephClient
 from aleph.sdk.vm.app import AlephApp
+from aleph_message.models import ItemHash
 from aleph_message.status import MessageStatus
 
 logger.debug("import fastapi")
