@@ -41,7 +41,7 @@ def fixture_nodes_aggregate() -> Dict[str, Any]:
                         "time": 1643047441.046,
                         "type": "compute",
                         "owner": "0x7057C12A7E270B9Db0E4c0d87c23Ba75fC5D82B1",
-                        "score": 0.0,
+                        "score": 0,
                         "banner": "",
                         "locked": "",
                         "parent": None,
@@ -123,6 +123,7 @@ async def test_select_random_nodes(fixture_nodes_aggregate: Dict[str, Any], mock
     nodes = await select_random_nodes(3)
     assert len(nodes) == 3
 
-    resource_nodes = fixture_nodes_aggregate["data"]["corechannel"]["resource_nodes"]
-    nodes = await select_random_nodes(len(resource_nodes) + 1)
-    assert len(nodes) == len(resource_nodes)
+    with pytest.raises(ValueError) as exception:
+        resource_nodes = fixture_nodes_aggregate["data"]["corechannel"]["resource_nodes"]
+        await select_random_nodes(len(resource_nodes))
+    assert str(exception.value) == f"Not enough CRNs linked, only 3 available from 4 requested"
