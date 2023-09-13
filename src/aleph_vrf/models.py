@@ -1,5 +1,5 @@
-from typing import Any, List, Optional
-from uuid import UUID, uuid4
+from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from aleph_message.models import ItemHash, PostMessage
 from pydantic import BaseModel
@@ -57,6 +57,7 @@ def generate_response_hash_from_message(message: PostMessage) -> VRFResponseHash
         execution_id=content["execution_id"],
         vrf_request=ItemHash(content["vrf_request"]),
         random_bytes_hash=content["random_bytes_hash"],
+        message_hash=content["message_hash"],
     )
 
 
@@ -72,8 +73,7 @@ class VRFRandomBytes(BaseModel):
 
 class CRNVRFResponse(BaseModel):
     url: str
-    node_hash: str
-    execution_id: UUID
+    execution_id: str
     random_number: str
     random_bytes: str
     random_bytes_hash: str
