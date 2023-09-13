@@ -36,7 +36,11 @@ async def index():
 async def receive_vrf() -> APIResponse:
     private_key = get_fallback_private_key()
     account = ETHAccount(private_key=private_key)
+    response = {"data": ""}
 
-    vrf_response = await generate_vrf(account)
+    try:
+        response = await generate_vrf(account)
+    except Exception as err:
+        response["data"] = {"error": str(err)}
 
-    return APIResponse(data=vrf_response)
+    return APIResponse(data=response)

@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+from enum import Enum
 from hashlib import sha3_256
 from typing import Any, Dict, List, Union
 from uuid import uuid4
@@ -38,13 +39,25 @@ VRF_FUNCTION_PUBLISH_PATH = "publish"
 logger = logging.getLogger(__name__)
 
 
-async def post_node_vrf(session, url):
+class VRFResponseModel(Enum):
+    ResponseHash = 1
+    RandomBytes = 2
+
+
+async def post_node_vrf(
+    session: aiohttp.ClientSession, url: str, model: VRFResponseModel
+) -> Union[Exception, VRFResponseHash, VRFRandomBytes]:
     async with session.post(url, timeout=60) as resp:
         if resp.status != 200:
             raise ValueError(f"VRF node request failed on {url}")
 
         response = await resp.json()
-        return response["data"]
+        data = response["data"]
+
+        if model == VRFResponseModel.ResponseHash:
+            return VRFResponseHash(**data)
+
+        return VRFRandomBytes(**data)
 
 
 async def _get_corechannel_aggregate() -> Dict[str, Any]:
@@ -75,7 +88,7 @@ async def select_random_nodes(node_amount: int) -> List[Node]:
 
     for resource_node in resource_nodes:
         # Filter nodes by address and with linked status
-        if resource_node["status"] == "linked" and resource_node["address"] != "":
+        if resource_node["status"] == "linked" and resource_node["score"] > 0.9:
             node_address = resource_node["address"].strip("/")
             node = Node(
                 hash=resource_node["hash"],
@@ -85,7 +98,9 @@ async def select_random_nodes(node_amount: int) -> List[Node]:
             node_list.append(node)
 
     if len(node_list) < node_amount:
-        raise ValueError(f"Not enough CRNs linked, only {len(node_list)} available from {node_amount} requested")
+        raise ValueError(
+            f"Not enough CRNs linked, only {len(node_list)} available from {node_amount} requested"
+        )
 
     # Randomize node order
     return random.sample(node_list, min(node_amount, len(node_list)))
@@ -149,13 +164,17 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
 
 async def send_generate_requests(
     session: aiohttp.ClientSession, selected_nodes: List[Node], request_item_hash: str
-) -> Dict[str, Dict]:
+) -> Dict[str, Union[Exception, VRFResponseHash]]:
     generate_tasks = []
     nodes: List[str] = []
     for node in selected_nodes:
         nodes.append(node.address)
         url = f"{node.address}/vm/{settings.FUNCTION}/{VRF_FUNCTION_GENERATE_PATH}/{request_item_hash}"
-        generate_tasks.append(asyncio.create_task(post_node_vrf(session, url)))
+        generate_tasks.append(
+            asyncio.create_task(
+                post_node_vrf(session, url, VRFResponseModel.ResponseHash)
+            )
+        )
 
     vrf_generated_responses = await asyncio.gather(
         *generate_tasks, return_exceptions=True
@@ -165,21 +184,25 @@ async def send_generate_requests(
 
 async def send_publish_requests(
     session: aiohttp.ClientSession,
-    vrf_generated_result: Dict[str, Dict],
-) -> Dict[str, Dict]:
+    vrf_generated_result: Dict[str, VRFResponseHash],
+) -> Dict[str, Union[Exception, VRFRandomBytes]]:
     publish_tasks = []
     nodes: List[str] = []
     for node, vrf_generated_response in vrf_generated_result.items():
         nodes.append(node)
         if isinstance(vrf_generated_response, Exception):
             raise ValueError(f"Generate response not found for Node {node}")
-        else:
-            node_message_hash = vrf_generated_response["message_hash"]
-            url = (
-                f"{node}/vm/{settings.FUNCTION}"
-                f"/{VRF_FUNCTION_PUBLISH_PATH}/{node_message_hash}"
+
+        node_message_hash = vrf_generated_response.message_hash
+        url = (
+            f"{node}/vm/{settings.FUNCTION}"
+            f"/{VRF_FUNCTION_PUBLISH_PATH}/{node_message_hash}"
+        )
+        publish_tasks.append(
+            asyncio.create_task(
+                post_node_vrf(session, url, VRFResponseModel.RandomBytes)
             )
-            publish_tasks.append(asyncio.create_task(post_node_vrf(session, url)))
+        )
 
     vrf_publish_responses = await asyncio.gather(*publish_tasks, return_exceptions=True)
     return dict(zip(nodes, vrf_publish_responses))
@@ -187,8 +210,8 @@ async def send_publish_requests(
 
 def generate_final_vrf(
     nonce: int,
-    vrf_generated_result: Dict[str, Dict],
-    vrf_publish_result: Dict[str, Dict],
+    vrf_generated_result: Dict[str, VRFResponseHash],
+    vrf_publish_result: Dict[str, VRFRandomBytes],
     vrf_request: VRFRequest,
 ) -> VRFResponse:
     nodes_responses = []
@@ -198,37 +221,37 @@ def generate_final_vrf(
             raise ValueError(f"Publish response not found for {node}")
 
         if (
-            vrf_generated_result[node]["random_bytes_hash"]
-            != vrf_publish_response["random_bytes_hash"]
+            vrf_generated_result[node].random_bytes_hash
+            != vrf_publish_response.random_bytes_hash
         ):
-            generated_hash = vrf_publish_response["random_bytes_hash"]
-            publish_hash = vrf_publish_response["random_bytes_hash"]
+            generated_hash = vrf_publish_response.random_bytes_hash
+            publish_hash = vrf_publish_response.random_bytes_hash
             raise ValueError(
                 f"Publish response hash ({publish_hash})"
                 f"different from generated one ({generated_hash})"
             )
 
         verified = verify(
-            binary_to_bytes(vrf_publish_response["random_bytes"]),
+            binary_to_bytes(vrf_publish_response.random_bytes),
             nonce,
-            vrf_publish_response["random_bytes_hash"],
+            vrf_publish_response.random_bytes_hash,
         )
         if not verified:
-            execution = vrf_publish_response["execution_id"]
+            execution = vrf_publish_response.execution_id
             raise ValueError(f"Failed hash verification for {execution}")
 
         random_numbers_list.append(
-            int_to_bytes(int(vrf_publish_response["random_number"]))
+            int_to_bytes(int(vrf_publish_response.random_number))
         )
 
         node_response = CRNVRFResponse(
             url=node,
-            execution_id=vrf_publish_response["execution_id"],
-            random_number=str(vrf_publish_response["random_number"]),
-            random_bytes=vrf_publish_response["random_bytes"],
-            random_bytes_hash=vrf_generated_result[node]["random_bytes_hash"],
-            generation_message_hash=vrf_generated_result[node]["message_hash"],
-            publish_message_hash=vrf_publish_response["message_hash"],
+            execution_id=vrf_publish_response.execution_id,
+            random_number=str(vrf_publish_response.random_number),
+            random_bytes=vrf_publish_response.random_bytes,
+            random_bytes_hash=vrf_generated_result[node].random_bytes_hash,
+            generation_message_hash=vrf_generated_result[node].message_hash,
+            publish_message_hash=vrf_publish_response.message_hash,
         )
         nodes_responses.append(node_response)
 
