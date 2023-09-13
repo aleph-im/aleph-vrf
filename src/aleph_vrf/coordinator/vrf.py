@@ -45,19 +45,22 @@ class VRFResponseModel(Enum):
 
 
 async def post_node_vrf(
-    session: aiohttp.ClientSession, url: str, model: VRFResponseModel
+    url: str, model: VRFResponseModel
 ) -> Union[Exception, VRFResponseHash, VRFRandomBytes]:
-    async with session.post(url, timeout=90) as resp:
-        if resp.status != 200:
-            raise ValueError(f"VRF node request failed on {url}")
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, timeout=60) as resp:
+            if resp.status != 200:
+                raise ValueError(f"VRF node request failed on {url}")
 
-        response = await resp.json()
-        data = response["data"]
+            response = await resp.json()
+            data = response["data"]
 
-        if model == VRFResponseModel.ResponseHash:
-            return VRFResponseHash(**data)
+            await session.close()
 
-        return VRFRandomBytes(**data)
+            if model == VRFResponseModel.ResponseHash:
+                return VRFResponseHash(**data)
+
+            return VRFRandomBytes(**data)
 
 
 async def _get_corechannel_aggregate() -> Dict[str, Any]:
@@ -128,42 +131,41 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
 
     logger.debug(f"Generated VRF request with item_hash {request_item_hash}")
 
-    async with aiohttp.ClientSession() as session:
-        vrf_generated_result = await send_generate_requests(
-            session, selected_nodes, request_item_hash
-        )
+    vrf_generated_result = await send_generate_requests(
+        selected_nodes, request_item_hash
+    )
 
-        logger.debug(
-            f"Received VRF generated requests from {len(vrf_generated_result)} nodes"
-        )
-        logger.debug(vrf_generated_result)
-        vrf_publish_result = await send_publish_requests(session, vrf_generated_result)
+    logger.debug(
+        f"Received VRF generated requests from {len(vrf_generated_result)} nodes"
+    )
+    logger.debug(vrf_generated_result)
+    vrf_publish_result = await send_publish_requests(vrf_generated_result)
 
-        logger.debug(
-            f"Received VRF publish requests from {len(vrf_generated_result)} nodes"
-        )
-        logger.debug(vrf_publish_result)
+    logger.debug(
+        f"Received VRF publish requests from {len(vrf_generated_result)} nodes"
+    )
+    logger.debug(vrf_publish_result)
 
-        vrf_response = generate_final_vrf(
-            nonce,
-            vrf_generated_result,
-            vrf_publish_result,
-            vrf_request,
-        )
+    vrf_response = generate_final_vrf(
+        nonce,
+        vrf_generated_result,
+        vrf_publish_result,
+        vrf_request,
+    )
 
-        ref = f"vrf_{vrf_response.request_id}"
+    ref = f"vrf_{vrf_response.request_id}"
 
-        logger.debug(f"Publishing final VRF summary")
+    logger.debug(f"Publishing final VRF summary")
 
-        response_item_hash = await publish_data(vrf_response, ref, account)
+    response_item_hash = await publish_data(vrf_response, ref, account)
 
-        vrf_response.message_hash = response_item_hash
+    vrf_response.message_hash = response_item_hash
 
-        return vrf_response
+    return vrf_response
 
 
 async def send_generate_requests(
-    session: aiohttp.ClientSession, selected_nodes: List[Node], request_item_hash: str
+    selected_nodes: List[Node], request_item_hash: str
 ) -> Dict[str, Union[Exception, VRFResponseHash]]:
     generate_tasks = []
     nodes: List[str] = []
@@ -172,7 +174,7 @@ async def send_generate_requests(
         url = f"{node.address}/vm/{settings.FUNCTION}/{VRF_FUNCTION_GENERATE_PATH}/{request_item_hash}"
         generate_tasks.append(
             asyncio.create_task(
-                post_node_vrf(session, url, VRFResponseModel.ResponseHash)
+                post_node_vrf(url, VRFResponseModel.ResponseHash)
             )
         )
 
@@ -183,7 +185,6 @@ async def send_generate_requests(
 
 
 async def send_publish_requests(
-    session: aiohttp.ClientSession,
     vrf_generated_result: Dict[str, VRFResponseHash],
 ) -> Dict[str, Union[Exception, VRFRandomBytes]]:
     publish_tasks = []
@@ -200,7 +201,7 @@ async def send_publish_requests(
         )
         publish_tasks.append(
             asyncio.create_task(
-                post_node_vrf(session, url, VRFResponseModel.RandomBytes)
+                post_node_vrf(url, VRFResponseModel.RandomBytes)
             )
         )
 
