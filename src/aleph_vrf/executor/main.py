@@ -109,7 +109,7 @@ async def receive_publish(hash_message: str) -> APIResponse:
             vrf_request=response_hash.vrf_request,
             random_bytes=bytes_to_binary(random_bytes),
             random_bytes_hash=response_hash.random_bytes_hash,
-            random_number=bytes_to_int(random_bytes),
+            random_number=str(bytes_to_int(random_bytes)),
         )
 
         ref = f"vrf_{response_hash.request_id}_{response_hash.execution_id}"

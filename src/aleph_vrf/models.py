@@ -66,7 +66,7 @@ class VRFRandomBytes(BaseModel):
     vrf_request: ItemHash
     random_bytes: str
     random_bytes_hash: str
-    random_number: int
+    random_number: str
     message_hash: Optional[str] = None
 
 
@@ -74,7 +74,7 @@ class CRNVRFResponse(BaseModel):
     url: str
     node_hash: str
     execution_id: UUID
-    random_number: int
+    random_number: str
     random_bytes: str
     random_bytes_hash: str
     generation_message_hash: str
@@ -87,7 +87,7 @@ class VRFResponse(BaseModel):
     vrf_function: ItemHash
     request_id: str
     nodes: List[CRNVRFResponse]
-    random_number: int
+    random_number: str
     message_hash: Optional[str] = None
 
 

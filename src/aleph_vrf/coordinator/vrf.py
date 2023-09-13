@@ -186,13 +186,13 @@ def generate_final_vrf(
         if not verified:
             raise ValueError(f"Failed hash verification for {vrf_publish_response.url}")
 
-        random_numbers_list.append(int_to_bytes(vrf_publish_response.random_number))
+        random_numbers_list.append(int_to_bytes(int(vrf_publish_response.random_number)))
 
         node_response = CRNVRFResponse(
             url=vrf_publish_response.url,
             node_hash=node.hash,
             execution_id=vrf_publish_response.execution_id,
-            random_number=vrf_publish_response.random_number,
+            random_number=str(vrf_publish_response.random_number),
             random_bytes=vrf_publish_response.random_bytes,
             random_bytes_hash=vrf_generated_result[node].random_bytes_hash,
         )
@@ -207,7 +207,7 @@ def generate_final_vrf(
         vrf_function=settings.FUNCTION,
         request_id=vrf_request.request_id,
         nodes=nodes_responses,
-        random_number=final_random_number,
+        random_number=str(final_random_number),
     )
 
 
