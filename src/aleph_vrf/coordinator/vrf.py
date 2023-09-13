@@ -4,7 +4,7 @@ import logging
 import random
 from hashlib import sha3_256
 from typing import Any, Dict, List, Union
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import aiohttp
 from aleph.sdk.chains.ethereum import ETHAccount
@@ -74,19 +74,23 @@ async def select_random_nodes(node_amount: int) -> List[Node]:
     resource_nodes = content["data"]["corechannel"]["resource_nodes"]
 
     for resource_node in resource_nodes:
-        node = Node(
-            hash=resource_node["hash"],
-            address=resource_node["address"],
-            score=resource_node["score"],
-        )
-        node_list.append(node)
+        if resource_node["status"] == "linked":
+            node = Node(
+                hash=resource_node["hash"],
+                address=resource_node["address"],
+                score=resource_node["score"],
+            )
+            node_list.append(node)
+
+    if len(node_list) < node_amount:
+        raise ValueError(f"Not enough CRNs linked, only {len(node_list)} available from {node_amount} requested")
 
     # Randomize node order
     return random.sample(node_list, min(node_amount, len(node_list)))
 
 
 async def generate_vrf(account: ETHAccount) -> VRFResponse:
-    selected_nodes = await select_random_nodes(settings.NB_EXECUTORS)
+    selected_nodes = await select_random_nodes(10)
     selected_node_list = json.dumps(selected_nodes, default=pydantic_encoder).encode(
         encoding="utf-8"
     )
