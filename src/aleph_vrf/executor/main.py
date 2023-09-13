@@ -127,7 +127,7 @@ async def publish_data(
     channel = f"vrf_{data.request_id}"
 
     async with AuthenticatedAlephClient(
-        account=account, api_server=settings.API_HOST
+        account=account, api_server=settings.API_HOST, allow_unix_sockets=False
     ) as client:
         message, status = await client.create_post(
             post_type="vrf_generation_post",

@@ -219,7 +219,7 @@ async def publish_data(
     logger.debug(f"Publishing message to {settings.API_HOST}")
 
     async with AuthenticatedAlephClient(
-        account=account, api_server=settings.API_HOST
+        account=account, api_server=settings.API_HOST, allow_unix_sockets=False
     ) as client:
         message, status = await client.create_post(
             post_type="vrf_library_post",
