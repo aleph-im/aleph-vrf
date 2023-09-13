@@ -53,6 +53,7 @@ async def receive_generate(vrf_request: str) -> APIResponse:
     private_key = get_fallback_private_key()
     account = ETHAccount(private_key=private_key)
 
+    print(settings.API_HOST)
     async with AlephClient(api_server=settings.API_HOST) as client:
         message = await client.get_message(item_hash=vrf_request)
         generation_request = generate_request_from_message(message)

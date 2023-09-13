@@ -15,7 +15,7 @@ app = FastAPI()
 MESSAGES = {}
 
 
-@app.get("/messages.json")
+@app.get("/api/v0/messages.json")
 async def get_messages(hashes: Optional[str], page: int = 1, pagination: int = 20):
     hashes = hashes.split(",")
     messages = [MESSAGES[item_hash] for item_hash in hashes if item_hash in MESSAGES]
@@ -23,8 +23,8 @@ async def get_messages(hashes: Optional[str], page: int = 1, pagination: int = 2
 
     return {
         "messages": paginated_messages,
-        "page": page,
-        "pagination": pagination,
+        "pagination_page": page,
+        "pagination_per_page": pagination,
         "pagination_total": len(messages),
         "pagination_item": "messages",
     }
@@ -59,7 +59,7 @@ def format_message(message_dict: Dict[str, Any]):
     message_dict["size"] = len(message_dict["item_content"])
 
 
-@app.post("/messages", response_model=PubMessageResponse)
+@app.post("/api/v0/messages", response_model=PubMessageResponse)
 async def post_message(message_request: PubMessageRequest):
     global MESSAGES
 

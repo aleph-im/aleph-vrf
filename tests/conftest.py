@@ -7,23 +7,17 @@
     - https://docs.pytest.org/en/stable/writing_plugins.html
 """
 import multiprocessing
+import os
 import socket
-import subprocess
 from contextlib import contextmanager
 from time import sleep
+from typing import Union
 
 import fastapi.applications
 import pytest
 import uvicorn
 
 from mock_ccn import app as mock_ccn_app
-from aleph_vrf.executor.main import app as executor_app
-
-
-def run_uvicorn_server(
-    app_path: str, host: str = "127.0.0.1", port: int = 8000
-) -> subprocess.Popen:
-    return subprocess.Popen(["uvicorn", app_path, "--host", host, "--port", str(port)])
 
 
 def wait_for_server(host: str, port: int, nb_retries: int = 3, wait_time: int = 0.1):
@@ -44,7 +38,7 @@ def wait_for_server(host: str, port: int, nb_retries: int = 3, wait_time: int = 
 
 @contextmanager
 def run_http_app(
-    app: fastapi.applications.ASGIApp, host: str, port: int
+    app: Union[str, fastapi.applications.ASGIApp], host: str, port: int
 ) -> multiprocessing.Process:
 
     uvicorn_process = multiprocessing.Process(
@@ -64,12 +58,15 @@ def run_http_app(
 @pytest.fixture
 def mock_ccn() -> str:
     host, port = "127.0.0.1", 4024
+    url = f"http://{host}:{port}"
+    os.environ["ALEPH_VRF_API_HOST"] = url
+
     with run_http_app(app=mock_ccn_app, host=host, port=port):
-        yield f"http://{host}:{port}"
+        yield url
 
 
 @pytest.fixture
-def executor_server() -> str:
+def executor_server(mock_ccn: str) -> str:
     host, port = "127.0.0.1", 8081
-    with run_http_app(app=executor_app, host=host, port=port):
+    with run_http_app(app="aleph_vrf.executor.main:app", host=host, port=port):
         yield f"http://{host}:{port}"
