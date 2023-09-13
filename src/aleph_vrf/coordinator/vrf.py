@@ -47,7 +47,7 @@ class VRFResponseModel(Enum):
 async def post_node_vrf(
     session: aiohttp.ClientSession, url: str, model: VRFResponseModel
 ) -> Union[Exception, VRFResponseHash, VRFRandomBytes]:
-    async with session.post(url, timeout=60) as resp:
+    async with session.post(url, timeout=90) as resp:
         if resp.status != 200:
             raise ValueError(f"VRF node request failed on {url}")
 
