@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 async def post_node_vrf(session, url):
-    async with session.post(url) as resp:
+    async with session.post(url, timeout=60) as resp:
         if resp.status != 200:
             raise ValueError(f"VRF node request failed on {url}")
 
@@ -74,10 +74,12 @@ async def select_random_nodes(node_amount: int) -> List[Node]:
     resource_nodes = content["data"]["corechannel"]["resource_nodes"]
 
     for resource_node in resource_nodes:
-        if resource_node["status"] == "linked":
+        # Filter nodes by address and with linked status
+        if resource_node["status"] == "linked" and resource_node["address"] != "":
+            node_address = resource_node["address"].strip("/")
             node = Node(
                 hash=resource_node["hash"],
-                address=resource_node["address"],
+                address=node_address,
                 score=resource_node["score"],
             )
             node_list.append(node)
@@ -90,7 +92,7 @@ async def select_random_nodes(node_amount: int) -> List[Node]:
 
 
 async def generate_vrf(account: ETHAccount) -> VRFResponse:
-    selected_nodes = await select_random_nodes(10)
+    selected_nodes = await select_random_nodes(settings.NB_EXECUTORS)
     selected_node_list = json.dumps(selected_nodes, default=pydantic_encoder).encode(
         encoding="utf-8"
     )
@@ -147,7 +149,7 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
 
 async def send_generate_requests(
     session: aiohttp.ClientSession, selected_nodes: List[Node], request_item_hash: str
-) -> Dict[str, VRFResponseHash]:
+) -> Dict[str, Dict]:
     generate_tasks = []
     nodes: List[str] = []
     for node in selected_nodes:
@@ -164,7 +166,7 @@ async def send_generate_requests(
 async def send_publish_requests(
     session: aiohttp.ClientSession,
     vrf_generated_result: Dict[str, Dict],
-) -> Dict[str, VRFRandomBytes]:
+) -> Dict[str, Dict]:
     publish_tasks = []
     nodes: List[str] = []
     for node, vrf_generated_response in vrf_generated_result.items():
