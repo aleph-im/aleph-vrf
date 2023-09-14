@@ -13,6 +13,7 @@ class Node(BaseModel):
 
 class VRFRequest(BaseModel):
     nb_bytes: int
+    nb_executors: int
     nonce: int
     vrf_function: ItemHash
     request_id: str
@@ -83,6 +84,7 @@ class CRNVRFResponse(BaseModel):
 
 class VRFResponse(BaseModel):
     nb_bytes: int
+    nb_executors: int
     nonce: int
     vrf_function: ItemHash
     request_id: str

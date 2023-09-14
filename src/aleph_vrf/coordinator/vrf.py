@@ -110,7 +110,8 @@ async def select_random_nodes(node_amount: int) -> List[Node]:
 
 
 async def generate_vrf(account: ETHAccount) -> VRFResponse:
-    selected_nodes = await select_random_nodes(settings.NB_EXECUTORS)
+    nb_executors = settings.NB_EXECUTORS
+    selected_nodes = await select_random_nodes(nb_executors)
     selected_node_list = json.dumps(selected_nodes, default=pydantic_encoder).encode(
         encoding="utf-8"
     )
@@ -119,6 +120,7 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
 
     vrf_request = VRFRequest(
         nb_bytes=settings.NB_BYTES,
+        nb_executors=nb_executors,
         nonce=nonce,
         vrf_function=ItemHash(settings.FUNCTION),
         request_id=str(uuid4()),
@@ -147,6 +149,7 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
     logger.debug(vrf_publish_result)
 
     vrf_response = generate_final_vrf(
+        nb_executors,
         nonce,
         vrf_generated_result,
         vrf_publish_result,
@@ -210,6 +213,7 @@ async def send_publish_requests(
 
 
 def generate_final_vrf(
+    nb_executors: int,
     nonce: int,
     vrf_generated_result: Dict[str, VRFResponseHash],
     vrf_publish_result: Dict[str, VRFRandomBytes],
@@ -261,6 +265,7 @@ def generate_final_vrf(
 
     return VRFResponse(
         nb_bytes=settings.NB_BYTES,
+        nb_executors=nb_executors,
         nonce=nonce,
         vrf_function=settings.FUNCTION,
         request_id=vrf_request.request_id,
