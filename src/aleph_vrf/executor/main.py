@@ -47,7 +47,7 @@ async def index():
 
 
 @app.post("/generate/{vrf_request}")
-async def receive_generate(vrf_request: str) -> APIResponse:
+async def receive_generate(vrf_request: str) -> APIResponse[VRFResponseHash]:
     global SAVED_GENERATED_BYTES
 
     private_key = get_fallback_private_key()
@@ -87,7 +87,7 @@ async def receive_generate(vrf_request: str) -> APIResponse:
 
 
 @app.post("/publish/{hash_message}")
-async def receive_publish(hash_message: str) -> APIResponse:
+async def receive_publish(hash_message: str) -> APIResponse[VRFRandomBytes]:
     global SAVED_GENERATED_BYTES
 
     private_key = get_fallback_private_key()

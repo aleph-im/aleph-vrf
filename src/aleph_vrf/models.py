@@ -1,8 +1,9 @@
-from typing import Any, List, Optional
+from typing import Any, List, Optional, TypeVar, Generic
 from uuid import UUID, uuid4
 
 from aleph_message.models import ItemHash, PostMessage
 from pydantic import BaseModel
+from pydantic.generics import GenericModel
 
 
 class Node(BaseModel):
@@ -93,5 +94,8 @@ class VRFResponse(BaseModel):
     message_hash: Optional[str] = None
 
 
-class APIResponse(BaseModel):
-    data: Any
+M = TypeVar("M", bound=BaseModel)
+
+
+class APIResponse(GenericModel, Generic[M]):
+    data: M
