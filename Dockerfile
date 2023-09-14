@@ -11,4 +11,4 @@ WORKDIR /usr/src/aleph_vrf
 COPY . .
 
 RUN mkdir /opt/packages
-RUN pip install -t /opt/packages -r requirements.txt
+RUN pip install -t /opt/packages .

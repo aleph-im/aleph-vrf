@@ -2,9 +2,8 @@ import asyncio
 import json
 import logging
 import random
-from enum import Enum
 from hashlib import sha3_256
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Type, TypeVar, Union
 from uuid import uuid4
 
 import aiohttp
@@ -12,6 +11,7 @@ from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client import AuthenticatedAlephClient
 from aleph_message.models import ItemHash
 from aleph_message.status import MessageStatus
+from pydantic import BaseModel
 from pydantic.json import pydantic_encoder
 
 from aleph_vrf.models import (
@@ -39,28 +39,20 @@ VRF_FUNCTION_PUBLISH_PATH = "publish"
 logger = logging.getLogger(__name__)
 
 
-class VRFResponseModel(Enum):
-    ResponseHash = 1
-    RandomBytes = 2
+M = TypeVar("M", bound=BaseModel)
 
 
-async def post_node_vrf(
-    url: str, model: VRFResponseModel
-) -> Union[Exception, VRFResponseHash, VRFRandomBytes]:
+async def post_node_vrf(url: str, model: Type[M]) -> Union[Exception, M]:
     async with aiohttp.ClientSession() as session:
         async with session.post(url, timeout=60) as resp:
             if resp.status != 200:
                 raise ValueError(f"VRF node request failed on {url}")
 
             response = await resp.json()
-            data = response["data"]
 
             await session.close()
 
-            if model == VRFResponseModel.ResponseHash:
-                return VRFResponseHash(**data)
-
-            return VRFRandomBytes(**data)
+            return model.parse_obj(response["data"])
 
 
 async def _get_corechannel_aggregate() -> Dict[str, Any]:
@@ -175,11 +167,7 @@ async def send_generate_requests(
     for node in selected_nodes:
         nodes.append(node.address)
         url = f"{node.address}/vm/{settings.FUNCTION}/{VRF_FUNCTION_GENERATE_PATH}/{request_item_hash}"
-        generate_tasks.append(
-            asyncio.create_task(
-                post_node_vrf(url, VRFResponseModel.ResponseHash)
-            )
-        )
+        generate_tasks.append(asyncio.create_task(post_node_vrf(url, VRFResponseHash)))
 
     vrf_generated_responses = await asyncio.gather(
         *generate_tasks, return_exceptions=True
@@ -202,11 +190,7 @@ async def send_publish_requests(
             f"{node}/vm/{settings.FUNCTION}"
             f"/{VRF_FUNCTION_PUBLISH_PATH}/{node_message_hash}"
         )
-        publish_tasks.append(
-            asyncio.create_task(
-                post_node_vrf(url, VRFResponseModel.RandomBytes)
-            )
-        )
+        publish_tasks.append(asyncio.create_task(post_node_vrf(url, VRFRandomBytes)))
 
     vrf_publish_responses = await asyncio.gather(*publish_tasks, return_exceptions=True)
     return dict(zip(nodes, vrf_publish_responses))

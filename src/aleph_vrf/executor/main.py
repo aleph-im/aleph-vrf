@@ -115,8 +115,6 @@ async def receive_publish(hash_message: str) -> APIResponse:
 
         message_hash = await publish_data(response_bytes, ref, account)
 
-
-
         response_bytes.message_hash = message_hash
 
         return APIResponse(data=response_bytes)
