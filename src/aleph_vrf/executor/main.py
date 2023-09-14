@@ -100,7 +100,7 @@ async def receive_publish(hash_message: str) -> APIResponse:
                 f"Random bytes not existing for execution {response_hash.execution_id}"
             )
 
-        random_bytes: bytes = SAVED_GENERATED_BYTES[str(response_hash.execution_id)]
+        random_bytes: bytes = SAVED_GENERATED_BYTES.pop(str(response_hash.execution_id))
 
         response_bytes = VRFRandomBytes(
             request_id=response_hash.request_id,
@@ -114,6 +114,8 @@ async def receive_publish(hash_message: str) -> APIResponse:
         ref = f"vrf_{response_hash.request_id}_{response_hash.execution_id}"
 
         message_hash = await publish_data(response_bytes, ref, account)
+
+
 
         response_bytes.message_hash = message_hash
 
