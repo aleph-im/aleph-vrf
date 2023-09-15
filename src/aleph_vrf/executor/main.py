@@ -1,8 +1,6 @@
 import logging
 from typing import Dict, Union
 
-from aleph_message.models import ItemHash
-
 from aleph_vrf.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -12,6 +10,7 @@ from aleph.sdk.chains.common import get_fallback_private_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client import AlephClient, AuthenticatedAlephClient
 from aleph.sdk.vm.app import AlephApp
+from aleph_message.models import ItemHash
 from aleph_message.status import MessageStatus
 
 logger.debug("import fastapi")
@@ -101,7 +100,7 @@ async def receive_publish(hash_message: str) -> APIResponse:
                 f"Random bytes not existing for execution {response_hash.execution_id}"
             )
 
-        random_bytes: bytes = SAVED_GENERATED_BYTES[str(response_hash.execution_id)]
+        random_bytes: bytes = SAVED_GENERATED_BYTES.pop(str(response_hash.execution_id))
 
         response_bytes = VRFRandomBytes(
             request_id=response_hash.request_id,
@@ -109,7 +108,7 @@ async def receive_publish(hash_message: str) -> APIResponse:
             vrf_request=response_hash.vrf_request,
             random_bytes=bytes_to_binary(random_bytes),
             random_bytes_hash=response_hash.random_bytes_hash,
-            random_number=bytes_to_int(random_bytes),
+            random_number=str(bytes_to_int(random_bytes)),
         )
 
         ref = f"vrf_{response_hash.request_id}_{response_hash.execution_id}"
@@ -127,7 +126,7 @@ async def publish_data(
     channel = f"vrf_{data.request_id}"
 
     async with AuthenticatedAlephClient(
-        account=account, api_server=settings.API_HOST
+        account=account, api_server=settings.API_HOST, allow_unix_sockets=False
     ) as client:
         message, status = await client.create_post(
             post_type="vrf_generation_post",
