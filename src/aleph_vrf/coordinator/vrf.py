@@ -50,8 +50,6 @@ async def post_node_vrf(url: str, model: Type[M]) -> Union[Exception, M]:
 
             response = await resp.json()
 
-            await session.close()
-
             return model.parse_obj(response["data"])
 
 
