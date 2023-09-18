@@ -73,8 +73,7 @@ def _get_unauthorized_node_list() -> List[str]:
     )
     if unauthorized_nodes_list_path.is_file():
         with open(unauthorized_nodes_list_path, "rb") as fd:
-            file_content = fd.read()
-            return json.loads(file_content)
+            return json.load(fd)
 
     return []
 
