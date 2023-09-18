@@ -3,6 +3,7 @@ import json
 import logging
 import random
 from hashlib import sha3_256
+from pathlib import Path
 from typing import Any, Dict, List, Type, TypeVar, Union
 from uuid import uuid4
 
@@ -66,7 +67,21 @@ async def _get_corechannel_aggregate() -> Dict[str, Any]:
             return await response.json()
 
 
-async def select_random_nodes(node_amount: int) -> List[Node]:
+def _get_unauthorized_node_list() -> List[str]:
+    unauthorized_nodes_list_path = Path(__file__).with_name(
+        "unauthorized_node_list.json"
+    )
+    if unauthorized_nodes_list_path.is_file():
+        with open(unauthorized_nodes_list_path, "rb") as fd:
+            file_content = fd.read()
+            return json.loads(file_content)
+
+    return []
+
+
+async def select_random_nodes(
+    node_amount: int, unauthorized_nodes: List[str]
+) -> List[Node]:
     node_list: List[Node] = []
 
     content = await _get_corechannel_aggregate()
@@ -80,8 +95,12 @@ async def select_random_nodes(node_amount: int) -> List[Node]:
     resource_nodes = content["data"]["corechannel"]["resource_nodes"]
 
     for resource_node in resource_nodes:
-        # Filter nodes by address and with linked status
-        if resource_node["status"] == "linked" and resource_node["score"] > 0.9:
+        # Filter nodes by score, with linked status and remove unauthorized nodes
+        if (
+            resource_node["status"] == "linked"
+            and resource_node["score"] > 0.9
+            and resource_node["address"].strip("/") not in unauthorized_nodes
+        ):
             node_address = resource_node["address"].strip("/")
             node = Node(
                 hash=resource_node["hash"],
@@ -101,7 +120,8 @@ async def select_random_nodes(node_amount: int) -> List[Node]:
 
 async def generate_vrf(account: ETHAccount) -> VRFResponse:
     nb_executors = settings.NB_EXECUTORS
-    selected_nodes = await select_random_nodes(nb_executors)
+    unauthorized_nodes = _get_unauthorized_node_list()
+    selected_nodes = await select_random_nodes(nb_executors, unauthorized_nodes)
     selected_node_list = json.dumps(selected_nodes, default=pydantic_encoder).encode(
         encoding="utf-8"
     )
@@ -130,13 +150,14 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
     logger.debug(
         f"Received VRF generated requests from {len(vrf_generated_result)} nodes"
     )
-    logger.debug(vrf_generated_result)
-    vrf_publish_result = await send_publish_requests(vrf_generated_result)
+
+    vrf_publish_result = await send_publish_requests(
+        vrf_generated_result, vrf_request.request_id
+    )
 
     logger.debug(
         f"Received VRF publish requests from {len(vrf_generated_result)} nodes"
     )
-    logger.debug(vrf_publish_result)
 
     vrf_response = generate_final_vrf(
         nb_executors,
@@ -175,13 +196,16 @@ async def send_generate_requests(
 
 async def send_publish_requests(
     vrf_generated_result: Dict[str, VRFResponseHash],
+    request_id: str,
 ) -> Dict[str, Union[Exception, VRFRandomBytes]]:
     publish_tasks = []
     nodes: List[str] = []
     for node, vrf_generated_response in vrf_generated_result.items():
         nodes.append(node)
         if isinstance(vrf_generated_response, Exception):
-            raise ValueError(f"Generate response not found for Node {node}")
+            raise ValueError(
+                f"Generate response not found for Node {node} on request_id {request_id}"
+            )
 
         node_message_hash = vrf_generated_response.message_hash
         url = (
