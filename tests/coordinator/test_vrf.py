@@ -104,6 +104,29 @@ def fixture_nodes_aggregate() -> Dict[str, Any]:
                         "decentralization": 0.9235073688446255,
                         "registration_url": "",
                     },
+                    {
+                        "hash": "a653f4f3b2166f20a6bf9b2be9bf14985eeab7525bc66a1fc968bb53761b00d1",
+                        "name": "ImAleph_1",
+                        "time": 1643048120.789,
+                        "type": "compute",
+                        "owner": "0xB25C7ED25b854a036FE0D96a92059dE9C8391253",
+                        "score": 0.9421971134284096,
+                        "banner": "",
+                        "locked": False,
+                        "parent": "9cbecc86d502a99e710e485266e37b9edab625245c406bfe93d9505a2550bcf8",
+                        "reward": "0xB25C7ED25b854a036FE0D96a92059dE9C8391253",
+                        "status": "linked",
+                        "address": "https://aleph2.serverrg.eu",
+                        "manager": "",
+                        "picture": "683b2e0a75dae42b5789da4d33bf959c1b04abe9ebeb3fe880bd839938fe5ac5",
+                        "authorized": "",
+                        "description": "",
+                        "performance": 0.8877354005528273,
+                        "multiaddress": "",
+                        "score_updated": True,
+                        "decentralization": 0.9235073688446255,
+                        "registration_url": "",
+                    },
                 ],
             }
         },
@@ -120,15 +143,39 @@ async def test_select_random_nodes(fixture_nodes_aggregate: Dict[str, Any], mock
     # Sanity check, avoid network accesses
     assert network_fixture.called_once
 
-    nodes = await select_random_nodes(3)
+    nodes = await select_random_nodes(3, [])
     assert len(nodes) == 3
 
     with pytest.raises(ValueError) as exception:
         resource_nodes = fixture_nodes_aggregate["data"]["corechannel"][
             "resource_nodes"
         ]
-        await select_random_nodes(len(resource_nodes))
+        await select_random_nodes(len(resource_nodes), [])
     assert (
         str(exception.value)
-        == f"Not enough CRNs linked, only 3 available from 4 requested"
+        == f"Not enough CRNs linked, only 4 available from 5 requested"
     )
+
+@pytest.mark.asyncio
+async def test_select_random_nodes_with_unauthorized(fixture_nodes_aggregate: Dict[str, Any], mocker):
+    network_fixture = mocker.patch(
+        "aleph_vrf.coordinator.vrf._get_corechannel_aggregate",
+        return_value=fixture_nodes_aggregate,
+    )
+
+    # Sanity check, avoid network accesses
+    assert network_fixture.called_once
+
+    nodes = await select_random_nodes(3, ["https://aleph2.serverrg.eu"])
+    assert len(nodes) == 3
+
+    with pytest.raises(ValueError) as exception:
+        resource_nodes = fixture_nodes_aggregate["data"]["corechannel"][
+            "resource_nodes"
+        ]
+        await select_random_nodes(len(resource_nodes) - 1, ["https://aleph2.serverrg.eu"])
+    assert (
+            str(exception.value)
+            == f"Not enough CRNs linked, only 3 available from 4 requested"
+    )
+
