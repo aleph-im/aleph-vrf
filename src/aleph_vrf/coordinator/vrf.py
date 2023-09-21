@@ -22,6 +22,10 @@ from aleph_vrf.models import (
     VRFResponse,
     PublishedVRFResponseHash,
     PublishedVRFRandomBytes,
+    VRFResponseHash,
+    Executor,
+    AlephExecutor,
+    ComputeResourceNode,
 )
 from aleph_vrf.settings import settings
 from aleph_vrf.types import RequestId, Nonce
@@ -79,10 +83,10 @@ def _get_unauthorized_node_list() -> List[str]:
     return []
 
 
-async def select_random_nodes(
+async def select_random_executors(
     node_amount: int, unauthorized_nodes: List[str]
-) -> List[Node]:
-    node_list: List[Node] = []
+) -> List[Executor]:
+    node_list: List[Executor] = []
 
     content = await _get_corechannel_aggregate()
 
@@ -102,12 +106,12 @@ async def select_random_nodes(
             and resource_node["address"].strip("/") not in unauthorized_nodes
         ):
             node_address = resource_node["address"].strip("/")
-            node = Node(
+            node = ComputeResourceNode(
                 hash=resource_node["hash"],
                 address=node_address,
                 score=resource_node["score"],
             )
-            node_list.append(node)
+            node_list.append(AlephExecutor(node=node, vm_function=settings.FUNCTION))
 
     if len(node_list) < node_amount:
         raise ValueError(
@@ -121,10 +125,10 @@ async def select_random_nodes(
 async def generate_vrf(account: ETHAccount) -> VRFResponse:
     nb_executors = settings.NB_EXECUTORS
     unauthorized_nodes = _get_unauthorized_node_list()
-    selected_nodes = await select_random_nodes(nb_executors, unauthorized_nodes)
-    selected_node_list = json.dumps(selected_nodes, default=pydantic_encoder).encode(
-        encoding="utf-8"
-    )
+    executors = await select_random_executors(nb_executors, unauthorized_nodes)
+    selected_nodes_json = json.dumps(
+        [executor.node for executor in executors], default=pydantic_encoder
+    ).encode(encoding="utf-8")
 
     nonce = generate_nonce()
 
@@ -134,7 +138,7 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
         nonce=nonce,
         vrf_function=ItemHash(settings.FUNCTION),
         request_id=RequestId(str(uuid4())),
-        node_list_hash=sha3_256(selected_node_list).hexdigest(),
+        node_list_hash=sha3_256(selected_nodes_json).hexdigest(),
     )
 
     ref = f"vrf_{vrf_request.request_id}_request"
@@ -144,19 +148,19 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
     logger.debug(f"Generated VRF request with item_hash {request_item_hash}")
 
     vrf_generated_result = await send_generate_requests(
-        selected_nodes=selected_nodes,
+        executors=executors,
         request_item_hash=request_item_hash,
         request_id=vrf_request.request_id,
     )
 
     logger.debug(
-        f"Received VRF generated requests from {len(vrf_generated_result)} nodes"
+        f"Received VRF generated requests from {len(vrf_generated_result)} executors"
     )
 
     vrf_publish_result = await send_publish_requests(vrf_generated_result)
 
     logger.debug(
-        f"Received VRF publish requests from {len(vrf_generated_result)} nodes"
+        f"Received VRF publish requests from {len(vrf_generated_result)} executors"
     )
 
     vrf_response = generate_final_vrf(
@@ -179,55 +183,50 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
 
 
 async def send_generate_requests(
-    selected_nodes: List[Node],
+    executors: List[Executor],
     request_item_hash: ItemHash,
     request_id: RequestId,
-) -> Dict[str, PublishedVRFResponseHash]:
+) -> Dict[Executor, PublishedVRFResponseHash]:
     generate_tasks = []
-    nodes: List[str] = []
-    for node in selected_nodes:
-        nodes.append(node.address)
-        url = f"{node.address}/vm/{settings.FUNCTION}/{VRF_FUNCTION_GENERATE_PATH}/{request_item_hash}"
-        generate_tasks.append(
-            asyncio.create_task(post_node_vrf(url, PublishedVRFResponseHash))
-        )
+    for executor in executors:
+        url = f"{executor.api_url}/{VRF_FUNCTION_GENERATE_PATH}/{request_item_hash}"
+        generate_tasks.append(asyncio.create_task(post_node_vrf(url, VRFResponseHash)))
 
     vrf_generated_responses = await asyncio.gather(
         *generate_tasks, return_exceptions=True
     )
-    generate_results = dict(zip(nodes, vrf_generated_responses))
-    for node, result in generate_results.items():
+    generate_results = dict(zip(executors, vrf_generated_responses))
+
+    for executor, result in generate_results.items():
         if isinstance(result, Exception):
             raise ValueError(
-                f"Generate response not found for Node {node} on request_id {request_id}"
+                f"Generate response not found for executor {executor} on request_id {request_id}"
             )
 
     return generate_results
 
 
 async def send_publish_requests(
-    vrf_generated_result: Dict[str, PublishedVRFResponseHash],
-) -> Dict[str, PublishedVRFRandomBytes]:
+    vrf_generated_result: Dict[Executor, PublishedVRFResponseHash],
+) -> Dict[Executor, PublishedVRFRandomBytes]:
     publish_tasks = []
-    nodes: List[str] = []
+    executors: List[Executor] = []
 
-    for node, vrf_generated_response in vrf_generated_result.items():
-        nodes.append(node)
+    for executor, vrf_generated_response in vrf_generated_result.items():
+        executors.append(executor)
 
         node_message_hash = vrf_generated_response.message_hash
-        url = (
-            f"{node}/vm/{settings.FUNCTION}"
-            f"/{VRF_FUNCTION_PUBLISH_PATH}/{node_message_hash}"
-        )
+        url = f"{executor.api_url}/{VRF_FUNCTION_PUBLISH_PATH}/{node_message_hash}"
         publish_tasks.append(
             asyncio.create_task(post_node_vrf(url, PublishedVRFRandomBytes))
         )
 
     vrf_publish_responses = await asyncio.gather(*publish_tasks, return_exceptions=True)
-    publish_results = dict(zip(nodes, vrf_publish_responses))
-    for node, result in publish_results.items():
+    publish_results = dict(zip(executors, vrf_publish_responses))
+
+    for executor, result in publish_results.items():
         if isinstance(result, Exception):
-            raise ValueError(f"Publish response not found for {node}")
+            raise ValueError(f"Publish response not found for {executor}")
 
     return publish_results
 
@@ -235,18 +234,15 @@ async def send_publish_requests(
 def generate_final_vrf(
     nb_executors: int,
     nonce: Nonce,
-    vrf_generated_result: Dict[str, PublishedVRFResponseHash],
-    vrf_publish_result: Dict[str, PublishedVRFRandomBytes],
+    vrf_generated_result: Dict[Executor, PublishedVRFResponseHash],
+    vrf_publish_result: Dict[Executor, PublishedVRFRandomBytes],
     vrf_request: VRFRequest,
 ) -> VRFResponse:
     nodes_responses = []
     random_numbers_list = []
-    for node, vrf_publish_response in vrf_publish_result.items():
-        if isinstance(vrf_publish_response, Exception):
-            raise ValueError(f"Publish response not found for {node}")
-
+    for executor, vrf_publish_response in vrf_publish_result.items():
         if (
-            vrf_generated_result[node].random_bytes_hash
+            vrf_generated_result[executor].random_bytes_hash
             != vrf_publish_response.random_bytes_hash
         ):
             generated_hash = vrf_publish_response.random_bytes_hash
@@ -270,12 +266,12 @@ def generate_final_vrf(
         )
 
         node_response = CRNVRFResponse(
-            url=node,
+            url=executor.node.address,
             execution_id=vrf_publish_response.execution_id,
             random_number=str(vrf_publish_response.random_number),
             random_bytes=vrf_publish_response.random_bytes,
-            random_bytes_hash=vrf_generated_result[node].random_bytes_hash,
-            generation_message_hash=vrf_generated_result[node].message_hash,
+            random_bytes_hash=vrf_generated_result[executor].random_bytes_hash,
+            generation_message_hash=vrf_generated_result[executor].message_hash,
             publish_message_hash=vrf_publish_response.message_hash,
         )
         nodes_responses.append(node_response)
