@@ -1,10 +1,22 @@
+import abc
 import asyncio
 import json
 import logging
 import random
 from hashlib import sha3_256
 from pathlib import Path
-from typing import Any, Dict, List, Type, TypeVar, Union
+from typing import (
+    Any,
+    Dict,
+    List,
+    Type,
+    TypeVar,
+    Union,
+    Iterator,
+    Iterable,
+    AsyncIterator,
+    Optional,
+)
 from uuid import uuid4
 
 import aiohttp
@@ -80,7 +92,7 @@ def _get_unauthorized_node_list() -> List[str]:
 
 async def select_random_nodes(
     node_amount: int, unauthorized_nodes: List[str]
-) -> List[Node]:
+) -> Iterable[Node]:
     node_list: List[Node] = []
 
     content = await _get_corechannel_aggregate()
@@ -117,23 +129,92 @@ async def select_random_nodes(
     return random.sample(node_list, min(node_amount, len(node_list)))
 
 
-async def generate_vrf(account: ETHAccount) -> VRFResponse:
-    nb_executors = settings.NB_EXECUTORS
-    unauthorized_nodes = _get_unauthorized_node_list()
-    selected_nodes = await select_random_nodes(nb_executors, unauthorized_nodes)
-    selected_node_list = json.dumps(selected_nodes, default=pydantic_encoder).encode(
-        encoding="utf-8"
-    )
+class ExecutorSelectionPolicy(abc.ABC):
+    @abc.abstractmethod
+    async def select_nodes(self, nb_executors: int) -> List[Node]:
+        ...
+
+
+class ExecuteOnAleph(ExecutorSelectionPolicy):
+    def __init__(self, vm_function: str):
+        self.vm_function = vm_function
+
+    @staticmethod
+    async def _list_compute_nodes() -> AsyncIterator[Node]:
+        content = await _get_corechannel_aggregate()
+
+        if (
+            not content["data"]["corechannel"]
+            or not content["data"]["corechannel"]["resource_nodes"]
+        ):
+            raise ValueError(f"Bad CRN list format")
+
+        resource_nodes = content["data"]["corechannel"]["resource_nodes"]
+
+        for resource_node in resource_nodes:
+            # Filter nodes by score, with linked status and remove unauthorized nodes
+            if (
+                resource_node["status"] == "linked"
+                and resource_node["score"] > 0.9
+                # and resource_node["address"].strip("/") not in unauthorized_nodes
+            ):
+                node_address = resource_node["address"].strip("/")
+                node = Node(
+                    hash=resource_node["hash"],
+                    address=node_address,
+                    score=resource_node["score"],
+                )
+                yield node
+
+    @staticmethod
+    def _get_unauthorized_node_list() -> List[str]:
+        unauthorized_nodes_list_path = Path(__file__).with_name(
+            "unauthorized_node_list.json"
+        )
+        if unauthorized_nodes_list_path.is_file():
+            with open(unauthorized_nodes_list_path, "rb") as fd:
+                return json.load(fd)
+
+        return []
+
+    async def select_nodes(self, nb_executors: int) -> List[Node]:
+        compute_nodes = self._list_compute_nodes()
+        blacklisted_nodes = self._get_unauthorized_node_list()
+        whitelisted_nodes = [
+            node
+            async for node in compute_nodes
+            if node.address not in blacklisted_nodes
+        ]
+
+        if len(whitelisted_nodes) < nb_executors:
+            raise ValueError(
+                f"Not enough CRNs linked, only {len(whitelisted_nodes)} "
+                f"available from {nb_executors} requested"
+            )
+        return random.sample(whitelisted_nodes, nb_executors)
+
+
+async def _generate_vrf(
+    account: ETHAccount,
+    nb_executors: int,
+    executor_selection_policy: ExecutorSelectionPolicy,
+    nb_bytes: int,
+    vrf_function: str,
+) -> VRFResponse:
+    selected_nodes = await executor_selection_policy.select_nodes(nb_executors)
+    selected_node_list_json = json.dumps(
+        selected_nodes, default=pydantic_encoder
+    ).encode(encoding="utf-8")
 
     nonce = generate_nonce()
 
     vrf_request = VRFRequest(
-        nb_bytes=settings.NB_BYTES,
+        nb_bytes=nb_bytes,
         nb_executors=nb_executors,
         nonce=nonce,
-        vrf_function=ItemHash(settings.FUNCTION),
+        vrf_function=ItemHash(vrf_function),
         request_id=str(uuid4()),
-        node_list_hash=sha3_256(selected_node_list).hexdigest(),
+        node_list_hash=sha3_256(selected_node_list_json).hexdigest(),
     )
 
     ref = f"vrf_{vrf_request.request_id}_request"
@@ -175,6 +256,29 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
     vrf_response.message_hash = response_item_hash
 
     return vrf_response
+
+
+async def generate_vrf(
+    account: ETHAccount,
+    nb_executors: Optional[int] = None,
+    executor_selection_policy: Optional[ExecutorSelectionPolicy] = None,
+    nb_bytes: Optional[int] = None,
+) -> VRFResponse:
+    vrf_function = settings.VRF_FUNCTION
+
+    nb_executors = nb_executors or settings.NB_EXECUTORS
+    executor_selection_policy = executor_selection_policy or ExecuteOnAleph(
+        vm_function=vrf_function
+    )
+    nb_bytes = nb_bytes or settings.NB_BYTES
+
+    return await _generate_vrf(
+        account=account,
+        nb_executors=nb_executors,
+        executor_selection_policy=executor_selection_policy,
+        nb_bytes=nb_bytes,
+        vrf_function=vrf_function
+    )
 
 
 async def send_generate_requests(

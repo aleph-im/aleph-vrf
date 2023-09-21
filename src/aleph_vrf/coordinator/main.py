@@ -1,5 +1,7 @@
 import logging
 
+from aleph_vrf.settings import settings
+
 logger = logging.getLogger(__name__)
 
 logger.debug("import aleph_client")
@@ -12,7 +14,7 @@ logger.debug("import fastapi")
 from fastapi import FastAPI
 
 logger.debug("local imports")
-from aleph_vrf.coordinator.vrf import generate_vrf
+from aleph_vrf.coordinator.vrf import generate_vrf, ExecuteOnAleph
 from aleph_vrf.models import APIResponse
 
 logger.debug("imports done")
@@ -38,7 +40,7 @@ async def receive_vrf() -> APIResponse:
     account = ETHAccount(private_key=private_key)
 
     try:
-        response = await generate_vrf(account)
+        response = await generate_vrf(account=account)
     except Exception as err:
         response = {"error": str(err)}
 

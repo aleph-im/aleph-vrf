@@ -6,12 +6,13 @@
     - https://docs.pytest.org/en/stable/fixture.html
     - https://docs.pytest.org/en/stable/writing_plugins.html
 """
+import asyncio
 import multiprocessing
 import os
 import socket
-from contextlib import contextmanager
+from contextlib import contextmanager, AsyncExitStack, ExitStack
 from time import sleep
-from typing import Union
+from typing import Union, Tuple, ContextManager
 
 import aiohttp
 import fastapi.applications
@@ -42,7 +43,7 @@ def wait_for_server(host: str, port: int, nb_retries: int = 3, wait_time: int = 
 @contextmanager
 def run_http_app(
     app: Union[str, fastapi.applications.ASGIApp], host: str, port: int
-) -> multiprocessing.Process:
+) -> ContextManager[multiprocessing.Process]:
     uvicorn_process = multiprocessing.Process(
         target=uvicorn.run, args=(app,), kwargs={"host": host, "port": port}
     )
@@ -97,3 +98,22 @@ def executor_server(mock_ccn: str) -> str:
 async def executor_client(executor_server: str) -> aiohttp.ClientSession:
     async with aiohttp.ClientSession(executor_server) as client:
         yield client
+
+
+@pytest_asyncio.fixture
+async def executor_servers(mock_ccn: str, request) -> Tuple[str]:
+    assert mock_ccn, "The mock CCN server must be running"
+
+    nb_executors = request.param
+
+    host = "127.0.0.1"
+    start_port = 8081
+    ports = list(range(start_port, start_port + nb_executors))
+    with ExitStack() as cm:
+        _processes = [
+            cm.enter_context(
+                run_http_app(app="aleph_vrf.executor.main:app", host=host, port=port)
+            )
+            for port in ports
+        ]
+        yield tuple(f"http://{host}:{port}" for port in ports)
