@@ -1,8 +1,8 @@
-from pydantic import BaseSettings, Field
+from pydantic import BaseSettings, Field, HttpUrl
 
 
 class Settings(BaseSettings):
-    API_HOST: str = Field(
+    API_HOST: HttpUrl = Field(
         default="https://api2.aleph.im",
         description="URL of the reference aleph.im Core Channel Node.",
     )
@@ -17,7 +17,9 @@ class Settings(BaseSettings):
         default="4992b4127d296b240bbb73058daea9bca09f717fa94767d6f4dc3ef53b4ef5ce",
         description="VRF function to use.",
     )
-    NB_EXECUTORS: int = Field(default=32, description="Number of executors to use.")
+    NB_EXECUTORS: int = Field(
+        default=32, description="Number of executors to use."
+    )
     NB_BYTES: int = Field(
         default=32, description="Number of bytes of the generated random number."
     )

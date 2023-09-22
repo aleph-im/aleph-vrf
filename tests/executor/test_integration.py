@@ -23,6 +23,7 @@ from aleph_vrf.models import (
     PublishedVRFResponseHash,
     PublishedVRFRandomBytes,
 )
+from aleph_vrf.types import Nonce, RequestId
 from aleph_vrf.utils import binary_to_bytes, verify
 
 
@@ -69,13 +70,13 @@ def make_post_message(
 
 @pytest.fixture
 def mock_vrf_request() -> VRFRequest:
-    request_id = "513eb52c-cb74-463a-b40e-0e2adedafb8b"
+    request_id = RequestId("513eb52c-cb74-463a-b40e-0e2adedafb8b")
 
     vrf_request = VRFRequest(
         nb_bytes=32,
         nb_executors=4,
-        nonce=42,
-        vrf_function="deca" * 16,
+        nonce=Nonce(42),
+        vrf_function=ItemHash("deca" * 16),
         request_id=request_id,
         node_list_hash="1234",
     )
