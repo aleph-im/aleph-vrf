@@ -15,7 +15,14 @@ from aleph_message.models import (
     PostMessage,
 )
 
-from aleph_vrf.models import VRFRequest, VRFResponseHash, VRFResponse, VRFRandomBytes
+from aleph_vrf.models import (
+    VRFRequest,
+    VRFResponseHash,
+    VRFResponse,
+    VRFRandomBytes,
+    PublishedVRFResponseHash,
+    PublishedVRFRandomBytes,
+)
 from aleph_vrf.utils import binary_to_bytes, verify
 
 
@@ -91,7 +98,9 @@ async def published_vrf_request(
 
 
 def assert_vrf_hash_matches_request(
-    response_hash: VRFResponseHash, vrf_request: VRFRequest, request_item_hash: ItemHash
+    response_hash: PublishedVRFResponseHash,
+    vrf_request: VRFRequest,
+    request_item_hash: ItemHash,
 ):
     assert response_hash.nb_bytes == vrf_request.nb_bytes
     assert response_hash.nonce == vrf_request.nonce
@@ -99,7 +108,6 @@ def assert_vrf_hash_matches_request(
     assert response_hash.execution_id  # This should be a UUID4
     assert response_hash.vrf_request == request_item_hash
     assert response_hash.random_bytes_hash
-    assert response_hash.message_hash
 
 
 def assert_random_number_matches_request(
@@ -132,7 +140,8 @@ def assert_vrf_response_hash_equal(
 
 
 async def assert_aleph_message_matches_response_hash(
-    ccn_url: str, response_hash: VRFResponseHash
+    ccn_url: Any,  # aiohttp does not expose its URL type
+    response_hash: PublishedVRFResponseHash,
 ) -> PostMessage:
     assert response_hash.message_hash
 
@@ -160,10 +169,9 @@ def assert_vrf_random_bytes_equal(
 
 
 async def assert_aleph_message_matches_random_bytes(
-    ccn_url: str, random_bytes: VRFRandomBytes
+    ccn_url: Any,  # aiohttp does not expose its URL type
+    random_bytes: PublishedVRFRandomBytes,
 ) -> PostMessage:
-    assert random_bytes.message_hash
-
     async with AlephClient(api_server=ccn_url) as client:
         message = await client.get_message(
             random_bytes.message_hash, message_type=PostMessage
@@ -195,7 +203,7 @@ async def test_normal_request_flow(
     assert resp.status == 200, await resp.text()
     response_json = await resp.json()
 
-    response_hash = VRFResponseHash.parse_obj(response_json["data"])
+    response_hash = PublishedVRFResponseHash.parse_obj(response_json["data"])
 
     assert_vrf_hash_matches_request(response_hash, vrf_request, item_hash)
     random_hash_message = await assert_aleph_message_matches_response_hash(
@@ -206,7 +214,7 @@ async def test_normal_request_flow(
     assert resp.status == 200, await resp.text()
     response_json = await resp.json()
 
-    random_bytes = VRFRandomBytes.parse_obj(response_json["data"])
+    random_bytes = PublishedVRFRandomBytes.parse_obj(response_json["data"])
     assert_random_number_matches_request(
         random_bytes=random_bytes,
         response_hash=response_hash,
@@ -238,7 +246,7 @@ async def test_call_publish_twice(
     assert resp.status == 200, await resp.text()
     response_json = await resp.json()
 
-    response_hash = VRFResponseHash.parse_obj(response_json["data"])
+    response_hash = PublishedVRFResponseHash.parse_obj(response_json["data"])
 
     # Call POST /publish a first time
     resp = await executor_client.post(f"/publish/{response_hash.message_hash}")

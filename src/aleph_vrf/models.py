@@ -1,4 +1,5 @@
-from typing import List, Optional, TypeVar, Generic
+from typing import List, Optional
+from typing import TypeVar, Generic
 from uuid import uuid4
 
 import fastapi
@@ -48,10 +49,34 @@ class VRFResponseHash(BaseModel):
     execution_id: str
     vrf_request: ItemHash
     random_bytes_hash: str
-    message_hash: Optional[str] = None
 
 
-def generate_response_hash_from_message(message: PostMessage) -> VRFResponseHash:
+class PublishedVRFResponseHash(VRFResponseHash):
+    """
+    A VRF response hash already published on aleph.im.
+    Includes the hash of the message published on aleph.im.
+    """
+
+    message_hash: ItemHash
+
+    @classmethod
+    def from_vrf_response_hash(
+        cls, vrf_response_hash: VRFResponseHash, message_hash: ItemHash
+    ) -> "PublishedVRFResponseHash":
+        return cls(
+            nb_bytes=vrf_response_hash.nb_bytes,
+            nonce=vrf_response_hash.nonce,
+            request_id=vrf_response_hash.request_id,
+            execution_id=vrf_response_hash.execution_id,
+            vrf_request=vrf_response_hash.vrf_request,
+            random_bytes_hash=vrf_response_hash.random_bytes_hash,
+            message_hash=message_hash,
+        )
+
+
+def generate_response_hash_from_message(
+    message: PostMessage,
+) -> PublishedVRFResponseHash:
     content = message.content.content
     try:
         response_hash = VRFResponseHash.parse_obj(content)
@@ -61,8 +86,9 @@ def generate_response_hash_from_message(message: PostMessage) -> VRFResponseHash
             detail=f"Could not parse content of {message.item_hash} as VRF response hash object: {e.json()}",
         )
 
-    response_hash.message_hash = message.item_hash
-    return response_hash
+    return PublishedVRFResponseHash.from_vrf_response_hash(
+        vrf_response_hash=response_hash, message_hash=message.item_hash
+    )
 
 
 class VRFRandomBytes(BaseModel):
@@ -72,7 +98,24 @@ class VRFRandomBytes(BaseModel):
     random_bytes: str
     random_bytes_hash: str
     random_number: str
-    message_hash: Optional[str] = None
+
+
+class PublishedVRFRandomBytes(VRFRandomBytes):
+    message_hash: ItemHash
+
+    @classmethod
+    def from_vrf_random_bytes(
+        cls, vrf_random_bytes: VRFRandomBytes, message_hash: ItemHash
+    ) -> "PublishedVRFRandomBytes":
+        return cls(
+            request_id=vrf_random_bytes.request_id,
+            execution_id=vrf_random_bytes.execution_id,
+            vrf_request=vrf_random_bytes.vrf_request,
+            random_bytes=vrf_random_bytes.random_bytes,
+            random_bytes_hash=vrf_random_bytes.random_bytes_hash,
+            random_number=vrf_random_bytes.random_number,
+            message_hash=message_hash,
+        )
 
 
 class CRNVRFResponse(BaseModel):

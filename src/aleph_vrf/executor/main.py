@@ -1,7 +1,5 @@
 import logging
-from contextlib import asynccontextmanager
 from typing import Dict, Union, Set
-from uuid import UUID
 
 import fastapi
 from aleph.sdk.exceptions import MessageNotFoundError, MultipleMessagesError
@@ -28,6 +26,8 @@ from aleph_vrf.models import (
     VRFResponseHash,
     generate_request_from_message,
     generate_response_hash_from_message,
+    PublishedVRFResponseHash,
+    PublishedVRFRandomBytes,
 )
 from aleph_vrf.utils import bytes_to_binary, bytes_to_int, generate
 
@@ -39,17 +39,7 @@ GENERATE_MESSAGE_REF_PATH = "hash"
 ANSWERED_REQUESTS: Set[str] = set()
 SAVED_GENERATED_BYTES: Dict[str, bytes] = {}
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global ANSWERED_REQUESTS, SAVED_GENERATED_BYTES
-
-    ANSWERED_REQUESTS.clear()
-    SAVED_GENERATED_BYTES.clear()
-    yield
-
-
-http_app = FastAPI(lifespan=lifespan)
+http_app = FastAPI()
 app = AlephApp(http_app=http_app)
 
 
@@ -80,7 +70,9 @@ async def _get_message(client: AlephClient, item_hash: ItemHash) -> PostMessage:
 
 
 @app.post("/generate/{vrf_request}")
-async def receive_generate(vrf_request: ItemHash) -> APIResponse[VRFResponseHash]:
+async def receive_generate(
+    vrf_request: ItemHash,
+) -> APIResponse[PublishedVRFResponseHash]:
     global SAVED_GENERATED_BYTES, ANSWERED_REQUESTS
 
     private_key = get_fallback_private_key()
@@ -120,13 +112,17 @@ async def receive_generate(vrf_request: ItemHash) -> APIResponse[VRFResponseHash
 
         message_hash = await publish_data(response_hash, ref, account)
 
-        response_hash.message_hash = message_hash
+        published_response_hash = PublishedVRFResponseHash.from_vrf_response_hash(
+            vrf_response_hash=response_hash, message_hash=message_hash
+        )
 
-        return APIResponse(data=response_hash)
+        return APIResponse(data=published_response_hash)
 
 
 @app.post("/publish/{hash_message}")
-async def receive_publish(hash_message: ItemHash) -> APIResponse[VRFRandomBytes]:
+async def receive_publish(
+    hash_message: ItemHash,
+) -> APIResponse[PublishedVRFRandomBytes]:
     global SAVED_GENERATED_BYTES
 
     private_key = get_fallback_private_key()
@@ -155,10 +151,11 @@ async def receive_publish(hash_message: ItemHash) -> APIResponse[VRFRandomBytes]
         ref = f"vrf_{response_hash.request_id}_{response_hash.execution_id}"
 
         message_hash = await publish_data(response_bytes, ref, account)
+        published_random_bytes = PublishedVRFRandomBytes.from_vrf_random_bytes(
+            vrf_random_bytes=response_bytes, message_hash=message_hash
+        )
 
-        response_bytes.message_hash = message_hash
-
-        return APIResponse(data=response_bytes)
+        return APIResponse(data=published_random_bytes)
 
 
 async def publish_data(

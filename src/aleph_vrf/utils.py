@@ -1,6 +1,6 @@
 from hashlib import sha3_256
 from random import randint
-from typing import List
+from typing import List, Tuple
 
 from utilitybelt import dev_urandom_entropy
 
@@ -38,9 +38,9 @@ def generate_nonce() -> int:
     return randint(0, 100000000)
 
 
-def generate(n: int, nonce: int) -> (bytes, bytes):
+def generate(n: int, nonce: int) -> Tuple[bytes, str]:
     """Generates a number of random bytes and hashes them with the nonce."""
-    random_bytes = dev_urandom_entropy(n)
+    random_bytes: bytes = dev_urandom_entropy(n)
     random_hash = sha3_256(random_bytes + int_to_bytes(nonce)).hexdigest()
     return random_bytes, random_hash
 

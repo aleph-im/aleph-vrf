@@ -3,6 +3,7 @@ import logging
 from enum import Enum
 from typing import Optional, Dict, Any, List
 
+from aleph_message.models import ItemHash
 from aleph_message.status import MessageStatus
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -12,12 +13,12 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 
-MESSAGES = {}
+MESSAGES: Dict[ItemHash, Dict[str, Any]] = {}
 
 
 @app.get("/api/v0/messages.json")
 async def get_messages(hashes: Optional[str], page: int = 1, pagination: int = 20):
-    hashes = hashes.split(",")
+    hashes = [ItemHash(h) for h in hashes.split(",")] if hashes is not None else []
     messages = [MESSAGES[item_hash] for item_hash in hashes if item_hash in MESSAGES]
     paginated_messages = messages[(page - 1) * pagination : page * pagination]
 
