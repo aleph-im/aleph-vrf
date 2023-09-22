@@ -1,4 +1,5 @@
 import logging
+from typing import Dict, Union
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ from fastapi import FastAPI
 
 logger.debug("local imports")
 from aleph_vrf.coordinator.vrf import generate_vrf
-from aleph_vrf.models import APIResponse
+from aleph_vrf.models import APIResponse, VRFResponse
 
 logger.debug("imports done")
 
@@ -36,6 +37,8 @@ async def index():
 async def receive_vrf() -> APIResponse:
     private_key = get_fallback_private_key()
     account = ETHAccount(private_key=private_key)
+
+    response: Union[VRFResponse, Dict[str, str]]
 
     try:
         response = await generate_vrf(account)

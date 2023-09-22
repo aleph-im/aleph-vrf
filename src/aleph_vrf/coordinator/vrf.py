@@ -18,10 +18,10 @@ from pydantic.json import pydantic_encoder
 from aleph_vrf.models import (
     CRNVRFResponse,
     Node,
-    VRFRandomBytes,
     VRFRequest,
     VRFResponse,
-    VRFResponseHash,
+    PublishedVRFResponseHash,
+    PublishedVRFRandomBytes,
 )
 from aleph_vrf.settings import settings
 from aleph_vrf.utils import (
@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 M = TypeVar("M", bound=BaseModel)
 
 
-async def post_node_vrf(url: str, model: Type[M]) -> Union[Exception, M]:
+async def post_node_vrf(url: str, model: Type[M]) -> M:
     async with aiohttp.ClientSession() as session:
         async with session.post(url, timeout=60) as resp:
             if resp.status != 200:
@@ -143,16 +143,16 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
     logger.debug(f"Generated VRF request with item_hash {request_item_hash}")
 
     vrf_generated_result = await send_generate_requests(
-        selected_nodes, request_item_hash
+        selected_nodes=selected_nodes,
+        request_item_hash=request_item_hash,
+        request_id=vrf_request.request_id,
     )
 
     logger.debug(
         f"Received VRF generated requests from {len(vrf_generated_result)} nodes"
     )
 
-    vrf_publish_result = await send_publish_requests(
-        vrf_generated_result, vrf_request.request_id
-    )
+    vrf_publish_result = await send_publish_requests(vrf_generated_result)
 
     logger.debug(
         f"Received VRF publish requests from {len(vrf_generated_result)} nodes"
@@ -178,50 +178,64 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
 
 
 async def send_generate_requests(
-    selected_nodes: List[Node], request_item_hash: str
-) -> Dict[str, Union[Exception, VRFResponseHash]]:
+    selected_nodes: List[Node],
+    request_item_hash: str,
+    request_id: str,
+) -> Dict[str, PublishedVRFResponseHash]:
     generate_tasks = []
     nodes: List[str] = []
     for node in selected_nodes:
         nodes.append(node.address)
         url = f"{node.address}/vm/{settings.FUNCTION}/{VRF_FUNCTION_GENERATE_PATH}/{request_item_hash}"
-        generate_tasks.append(asyncio.create_task(post_node_vrf(url, VRFResponseHash)))
+        generate_tasks.append(
+            asyncio.create_task(post_node_vrf(url, PublishedVRFResponseHash))
+        )
 
     vrf_generated_responses = await asyncio.gather(
         *generate_tasks, return_exceptions=True
     )
-    return dict(zip(nodes, vrf_generated_responses))
-
-
-async def send_publish_requests(
-    vrf_generated_result: Dict[str, VRFResponseHash],
-    request_id: str,
-) -> Dict[str, Union[Exception, VRFRandomBytes]]:
-    publish_tasks = []
-    nodes: List[str] = []
-    for node, vrf_generated_response in vrf_generated_result.items():
-        nodes.append(node)
-        if isinstance(vrf_generated_response, Exception):
+    generate_results = dict(zip(nodes, vrf_generated_responses))
+    for node, result in generate_results.items():
+        if isinstance(result, Exception):
             raise ValueError(
                 f"Generate response not found for Node {node} on request_id {request_id}"
             )
+
+    return generate_results
+
+
+async def send_publish_requests(
+    vrf_generated_result: Dict[str, PublishedVRFResponseHash],
+) -> Dict[str, PublishedVRFRandomBytes]:
+    publish_tasks = []
+    nodes: List[str] = []
+
+    for node, vrf_generated_response in vrf_generated_result.items():
+        nodes.append(node)
 
         node_message_hash = vrf_generated_response.message_hash
         url = (
             f"{node}/vm/{settings.FUNCTION}"
             f"/{VRF_FUNCTION_PUBLISH_PATH}/{node_message_hash}"
         )
-        publish_tasks.append(asyncio.create_task(post_node_vrf(url, VRFRandomBytes)))
+        publish_tasks.append(
+            asyncio.create_task(post_node_vrf(url, PublishedVRFRandomBytes))
+        )
 
     vrf_publish_responses = await asyncio.gather(*publish_tasks, return_exceptions=True)
-    return dict(zip(nodes, vrf_publish_responses))
+    publish_results = dict(zip(nodes, vrf_publish_responses))
+    for node, result in publish_results.items():
+        if isinstance(result, Exception):
+            raise ValueError(f"Publish response not found for {node}")
+
+    return publish_results
 
 
 def generate_final_vrf(
     nb_executors: int,
     nonce: int,
-    vrf_generated_result: Dict[str, VRFResponseHash],
-    vrf_publish_result: Dict[str, VRFRandomBytes],
+    vrf_generated_result: Dict[str, PublishedVRFResponseHash],
+    vrf_publish_result: Dict[str, PublishedVRFRandomBytes],
     vrf_request: VRFRequest,
 ) -> VRFResponse:
     nodes_responses = []
