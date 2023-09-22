@@ -140,10 +140,9 @@ async def test_select_random_nodes(fixture_nodes_aggregate: Dict[str, Any], mock
         return_value=fixture_nodes_aggregate,
     )
 
-    # Sanity check, avoid network accesses
-    assert network_fixture.called_once
-
     nodes = await select_random_nodes(3, [])
+    # Sanity check, avoid network accesses
+    network_fixture.assert_called_once()
     assert len(nodes) == 3
 
     with pytest.raises(ValueError) as exception:
@@ -163,10 +162,9 @@ async def test_select_random_nodes_with_unauthorized(fixture_nodes_aggregate: Di
         return_value=fixture_nodes_aggregate,
     )
 
-    # Sanity check, avoid network accesses
-    assert network_fixture.called_once
-
     nodes = await select_random_nodes(3, ["https://aleph2.serverrg.eu"])
+    # Sanity check, avoid network accesses
+    network_fixture.assert_called_once()
     assert len(nodes) == 3
 
     with pytest.raises(ValueError) as exception:
@@ -178,4 +176,3 @@ async def test_select_random_nodes_with_unauthorized(fixture_nodes_aggregate: Di
             str(exception.value)
             == f"Not enough CRNs linked, only 3 available from 4 requested"
     )
-
