@@ -1,6 +1,7 @@
 import datetime as dt
 from hashlib import sha256
 from typing import Dict, Any, Union, Tuple
+from uuid import UUID
 
 import aiohttp
 import pytest
@@ -70,7 +71,7 @@ def make_post_message(
 
 @pytest.fixture
 def mock_vrf_request() -> VRFRequest:
-    request_id = RequestId("513eb52c-cb74-463a-b40e-0e2adedafb8b")
+    request_id = RequestId(UUID("513eb52c-cb74-463a-b40e-0e2adedafb8b"))
 
     vrf_request = VRFRequest(
         nb_bytes=32,

@@ -133,7 +133,7 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
         nb_executors=nb_executors,
         nonce=nonce,
         vrf_function=ItemHash(settings.FUNCTION),
-        request_id=RequestId(str(uuid4())),
+        request_id=RequestId(uuid4()),
         node_list_hash=sha3_256(selected_node_list).hexdigest(),
     )
 

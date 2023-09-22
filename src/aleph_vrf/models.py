@@ -29,7 +29,7 @@ class VRFGenerationRequest(BaseModel):
     nb_bytes: int
     nonce: Nonce
     request_id: RequestId
-    execution_id: ExecutionId = Field(default_factory=lambda: str(uuid4()))
+    execution_id: ExecutionId = Field(default_factory=uuid4)
     vrf_function: ItemHash
 
 
