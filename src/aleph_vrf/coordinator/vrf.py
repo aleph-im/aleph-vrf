@@ -24,6 +24,7 @@ from aleph_vrf.models import (
     PublishedVRFRandomBytes,
 )
 from aleph_vrf.settings import settings
+from aleph_vrf.types import RequestId, Nonce
 from aleph_vrf.utils import (
     binary_to_bytes,
     bytes_to_int,
@@ -132,7 +133,7 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
         nb_executors=nb_executors,
         nonce=nonce,
         vrf_function=ItemHash(settings.FUNCTION),
-        request_id=str(uuid4()),
+        request_id=RequestId(uuid4()),
         node_list_hash=sha3_256(selected_node_list).hexdigest(),
     )
 
@@ -179,8 +180,8 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
 
 async def send_generate_requests(
     selected_nodes: List[Node],
-    request_item_hash: str,
-    request_id: str,
+    request_item_hash: ItemHash,
+    request_id: RequestId,
 ) -> Dict[str, PublishedVRFResponseHash]:
     generate_tasks = []
     nodes: List[str] = []
@@ -233,7 +234,7 @@ async def send_publish_requests(
 
 def generate_final_vrf(
     nb_executors: int,
-    nonce: int,
+    nonce: Nonce,
     vrf_generated_result: Dict[str, PublishedVRFResponseHash],
     vrf_publish_result: Dict[str, PublishedVRFRandomBytes],
     vrf_request: VRFRequest,
