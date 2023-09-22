@@ -1,5 +1,10 @@
 import logging
-from typing import Dict, Union
+from contextlib import asynccontextmanager
+from typing import Dict, Union, Set
+from uuid import UUID
+
+import fastapi
+from aleph.sdk.exceptions import MessageNotFoundError, MultipleMessagesError
 
 from aleph_vrf.settings import settings
 
@@ -10,7 +15,7 @@ from aleph.sdk.chains.common import get_fallback_private_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client import AlephClient, AuthenticatedAlephClient
 from aleph.sdk.vm.app import AlephApp
-from aleph_message.models import ItemHash
+from aleph_message.models import ItemHash, PostMessage
 from aleph_message.status import MessageStatus
 
 logger.debug("import fastapi")
@@ -28,13 +33,24 @@ from aleph_vrf.utils import bytes_to_binary, bytes_to_int, generate
 
 logger.debug("imports done")
 
-http_app = FastAPI()
-app = AlephApp(http_app=http_app)
-
 GENERATE_MESSAGE_REF_PATH = "hash"
 
 # TODO: Use another method to save the data
+ANSWERED_REQUESTS: Set[str] = set()
 SAVED_GENERATED_BYTES: Dict[str, bytes] = {}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global ANSWERED_REQUESTS, SAVED_GENERATED_BYTES
+
+    ANSWERED_REQUESTS.clear()
+    SAVED_GENERATED_BYTES.clear()
+    yield
+
+
+http_app = FastAPI(lifespan=lifespan)
+app = AlephApp(http_app=http_app)
 
 
 @app.get("/")
@@ -45,21 +61,46 @@ async def index():
     }
 
 
+async def _get_message(client: AlephClient, item_hash: ItemHash) -> PostMessage:
+    try:
+        return await client.get_message(item_hash=item_hash, message_type=PostMessage)
+    except MessageNotFoundError:
+        raise fastapi.HTTPException(
+            status_code=404, detail=f"Message {item_hash} not found"
+        )
+    except MultipleMessagesError:
+        raise fastapi.HTTPException(
+            status_code=409,
+            detail=f"Multiple messages have the following hash: {item_hash}",
+        )
+    except TypeError:
+        raise fastapi.HTTPException(
+            status_code=409, detail=f"Message {item_hash} is not a POST message"
+        )
+
+
 @app.post("/generate/{vrf_request}")
-async def receive_generate(vrf_request: str) -> APIResponse:
-    global SAVED_GENERATED_BYTES
+async def receive_generate(vrf_request: ItemHash) -> APIResponse[VRFResponseHash]:
+    global SAVED_GENERATED_BYTES, ANSWERED_REQUESTS
 
     private_key = get_fallback_private_key()
     account = ETHAccount(private_key=private_key)
 
     async with AlephClient(api_server=settings.API_HOST) as client:
-        message = await client.get_message(item_hash=vrf_request)
+        message = await _get_message(client=client, item_hash=vrf_request)
         generation_request = generate_request_from_message(message)
+
+        if generation_request.request_id in ANSWERED_REQUESTS:
+            raise fastapi.HTTPException(
+                status_code=409,
+                detail=f"A random number has already been generated for request {vrf_request}",
+            )
 
         generated_bytes, hashed_bytes = generate(
             generation_request.nb_bytes, generation_request.nonce
         )
         SAVED_GENERATED_BYTES[str(generation_request.execution_id)] = generated_bytes
+        ANSWERED_REQUESTS.add(generation_request.request_id)
 
         response_hash = VRFResponseHash(
             nb_bytes=generation_request.nb_bytes,
@@ -85,19 +126,19 @@ async def receive_generate(vrf_request: str) -> APIResponse:
 
 
 @app.post("/publish/{hash_message}")
-async def receive_publish(hash_message: str) -> APIResponse:
+async def receive_publish(hash_message: ItemHash) -> APIResponse[VRFRandomBytes]:
     global SAVED_GENERATED_BYTES
 
     private_key = get_fallback_private_key()
     account = ETHAccount(private_key=private_key)
 
     async with AlephClient(api_server=settings.API_HOST) as client:
-        message = await client.get_message(item_hash=hash_message)
+        message = await _get_message(client=client, item_hash=hash_message)
         response_hash = generate_response_hash_from_message(message)
 
-        if not SAVED_GENERATED_BYTES[str(response_hash.execution_id)]:
-            raise ValueError(
-                f"Random bytes not existing for execution {response_hash.execution_id}"
+        if response_hash.execution_id not in SAVED_GENERATED_BYTES:
+            raise fastapi.HTTPException(
+                status_code=404, detail="The random number has already been published"
             )
 
         random_bytes: bytes = SAVED_GENERATED_BYTES.pop(str(response_hash.execution_id))

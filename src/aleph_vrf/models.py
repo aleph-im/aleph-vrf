@@ -1,8 +1,10 @@
-from typing import Any, Dict, List, Optional
+from typing import List, Optional, TypeVar, Generic
 from uuid import uuid4
 
+import fastapi
 from aleph_message.models import ItemHash, PostMessage
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError, Field
+from pydantic.generics import GenericModel
 
 
 class Node(BaseModel):
@@ -24,19 +26,19 @@ class VRFGenerationRequest(BaseModel):
     nb_bytes: int
     nonce: int
     request_id: str
-    execution_id: str
+    execution_id: str = Field(default_factory=lambda: str(uuid4()))
     vrf_function: ItemHash
 
 
 def generate_request_from_message(message: PostMessage) -> VRFGenerationRequest:
     content = message.content.content
-    return VRFGenerationRequest(
-        nb_bytes=content["nb_bytes"],
-        nonce=content["nonce"],
-        request_id=content["request_id"],
-        execution_id=str(uuid4()),
-        vrf_function=ItemHash(content["vrf_function"]),
-    )
+    try:
+        return VRFGenerationRequest.parse_obj(content)
+    except ValidationError as e:
+        raise fastapi.HTTPException(
+            status_code=422,
+            detail=f"Could not parse content of {message.item_hash} as VRF request object: {e.json()}",
+        )
 
 
 class VRFResponseHash(BaseModel):
@@ -51,15 +53,16 @@ class VRFResponseHash(BaseModel):
 
 def generate_response_hash_from_message(message: PostMessage) -> VRFResponseHash:
     content = message.content.content
-    return VRFResponseHash(
-        nb_bytes=content["nb_bytes"],
-        nonce=content["nonce"],
-        request_id=content["request_id"],
-        execution_id=content["execution_id"],
-        vrf_request=ItemHash(content["vrf_request"]),
-        random_bytes_hash=content["random_bytes_hash"],
-        message_hash=content["message_hash"],
-    )
+    try:
+        response_hash = VRFResponseHash.parse_obj(content)
+    except ValidationError as e:
+        raise fastapi.HTTPException(
+            422,
+            detail=f"Could not parse content of {message.item_hash} as VRF response hash object: {e.json()}",
+        )
+
+    response_hash.message_hash = message.item_hash
+    return response_hash
 
 
 class VRFRandomBytes(BaseModel):
@@ -93,5 +96,8 @@ class VRFResponse(BaseModel):
     message_hash: Optional[str] = None
 
 
-class APIResponse(BaseModel):
-    data: Any
+M = TypeVar("M", bound=BaseModel)
+
+
+class APIResponse(GenericModel, Generic[M]):
+    data: M
