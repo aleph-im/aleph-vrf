@@ -4,6 +4,8 @@ from typing import List, Tuple
 
 from utilitybelt import dev_urandom_entropy
 
+from aleph_vrf.types import Nonce
+
 
 def xor_all(x: List[bytes]) -> bytes:
     """XORs all the bytes in the list together."""
@@ -33,12 +35,12 @@ def binary_to_bytes(s: str):
     return int(s, 2).to_bytes((len(s) + 7) // 8, byteorder="big")
 
 
-def generate_nonce() -> int:
+def generate_nonce() -> Nonce:
     """Generates pseudo-random nonce number."""
-    return randint(0, 100000000)
+    return Nonce(randint(0, 100000000))
 
 
-def generate(n: int, nonce: int) -> Tuple[bytes, str]:
+def generate(n: int, nonce: Nonce) -> Tuple[bytes, str]:
     """Generates a number of random bytes and hashes them with the nonce."""
     random_bytes: bytes = dev_urandom_entropy(n)
     random_hash = sha3_256(random_bytes + int_to_bytes(nonce)).hexdigest()

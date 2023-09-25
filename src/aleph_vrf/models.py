@@ -7,6 +7,8 @@ from aleph_message.models import ItemHash, PostMessage
 from pydantic import BaseModel, ValidationError, Field
 from pydantic.generics import GenericModel
 
+from aleph_vrf.types import Nonce, RequestId, ExecutionId
+
 
 class Node(BaseModel):
     hash: str
@@ -17,17 +19,17 @@ class Node(BaseModel):
 class VRFRequest(BaseModel):
     nb_bytes: int
     nb_executors: int
-    nonce: int
+    nonce: Nonce
     vrf_function: ItemHash
-    request_id: str
+    request_id: RequestId
     node_list_hash: str
 
 
 class VRFGenerationRequest(BaseModel):
     nb_bytes: int
-    nonce: int
-    request_id: str
-    execution_id: str = Field(default_factory=lambda: str(uuid4()))
+    nonce: Nonce
+    request_id: RequestId
+    execution_id: ExecutionId = Field(default_factory=lambda: str(uuid4()))
     vrf_function: ItemHash
 
 
@@ -44,9 +46,9 @@ def generate_request_from_message(message: PostMessage) -> VRFGenerationRequest:
 
 class VRFResponseHash(BaseModel):
     nb_bytes: int
-    nonce: int
-    request_id: str
-    execution_id: str
+    nonce: Nonce
+    request_id: RequestId
+    execution_id: ExecutionId
     vrf_request: ItemHash
     random_bytes_hash: str
 
@@ -61,7 +63,7 @@ class PublishedVRFResponseHash(VRFResponseHash):
 
     @classmethod
     def from_vrf_response_hash(
-        cls, vrf_response_hash: VRFResponseHash, message_hash: ItemHash
+            cls, vrf_response_hash: VRFResponseHash, message_hash: ItemHash
     ) -> "PublishedVRFResponseHash":
         return cls(
             nb_bytes=vrf_response_hash.nb_bytes,
@@ -75,7 +77,7 @@ class PublishedVRFResponseHash(VRFResponseHash):
 
 
 def generate_response_hash_from_message(
-    message: PostMessage,
+        message: PostMessage,
 ) -> PublishedVRFResponseHash:
     content = message.content.content
     try:
@@ -92,8 +94,8 @@ def generate_response_hash_from_message(
 
 
 class VRFRandomBytes(BaseModel):
-    request_id: str
-    execution_id: str
+    request_id: RequestId
+    execution_id: ExecutionId
     vrf_request: ItemHash
     random_bytes: str
     random_bytes_hash: str
@@ -105,7 +107,7 @@ class PublishedVRFRandomBytes(VRFRandomBytes):
 
     @classmethod
     def from_vrf_random_bytes(
-        cls, vrf_random_bytes: VRFRandomBytes, message_hash: ItemHash
+            cls, vrf_random_bytes: VRFRandomBytes, message_hash: ItemHash
     ) -> "PublishedVRFRandomBytes":
         return cls(
             request_id=vrf_random_bytes.request_id,
@@ -120,23 +122,23 @@ class PublishedVRFRandomBytes(VRFRandomBytes):
 
 class CRNVRFResponse(BaseModel):
     url: str
-    execution_id: str
+    execution_id: ExecutionId
     random_number: str
     random_bytes: str
     random_bytes_hash: str
-    generation_message_hash: str
-    publish_message_hash: str
+    generation_message_hash: ItemHash
+    publish_message_hash: ItemHash
 
 
 class VRFResponse(BaseModel):
     nb_bytes: int
     nb_executors: int
-    nonce: int
+    nonce: Nonce
     vrf_function: ItemHash
-    request_id: str
+    request_id: RequestId
     nodes: List[CRNVRFResponse]
     random_number: str
-    message_hash: Optional[str] = None
+    message_hash: Optional[ItemHash] = None
 
 
 M = TypeVar("M", bound=BaseModel)

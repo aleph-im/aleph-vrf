@@ -5,6 +5,7 @@ import fastapi
 from aleph.sdk.exceptions import MessageNotFoundError, MultipleMessagesError
 
 from aleph_vrf.settings import settings
+from aleph_vrf.types import ExecutionId, RequestId
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +37,8 @@ logger.debug("imports done")
 GENERATE_MESSAGE_REF_PATH = "hash"
 
 # TODO: Use another method to save the data
-ANSWERED_REQUESTS: Set[str] = set()
-SAVED_GENERATED_BYTES: Dict[str, bytes] = {}
+ANSWERED_REQUESTS: Set[RequestId] = set()
+SAVED_GENERATED_BYTES: Dict[ExecutionId, bytes] = {}
 
 http_app = FastAPI()
 app = AlephApp(http_app=http_app)
@@ -91,7 +92,7 @@ async def receive_generate(
         generated_bytes, hashed_bytes = generate(
             generation_request.nb_bytes, generation_request.nonce
         )
-        SAVED_GENERATED_BYTES[str(generation_request.execution_id)] = generated_bytes
+        SAVED_GENERATED_BYTES[generation_request.execution_id] = generated_bytes
         ANSWERED_REQUESTS.add(generation_request.request_id)
 
         response_hash = VRFResponseHash(
@@ -137,7 +138,7 @@ async def receive_publish(
                 status_code=404, detail="The random number has already been published"
             )
 
-        random_bytes: bytes = SAVED_GENERATED_BYTES.pop(str(response_hash.execution_id))
+        random_bytes: bytes = SAVED_GENERATED_BYTES.pop(response_hash.execution_id)
 
         response_bytes = VRFRandomBytes(
             request_id=response_hash.request_id,
