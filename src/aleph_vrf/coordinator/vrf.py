@@ -13,15 +13,18 @@ from aleph_message.status import MessageStatus
 from pydantic import BaseModel
 from pydantic.json import pydantic_encoder
 
-from aleph_vrf.coordinator.executor_selection import ExecuteOnAleph
+from aleph_vrf.coordinator.executor_selection import (
+    ExecuteOnAleph,
+    ExecutorSelectionPolicy,
+)
 from aleph_vrf.models import (
     CRNVRFResponse,
     VRFRequest,
     VRFResponse,
     PublishedVRFResponseHash,
     PublishedVRFRandomBytes,
-    VRFResponseHash,
     Executor,
+    PublishedVRFResponse,
 )
 from aleph_vrf.settings import settings
 from aleph_vrf.types import RequestId, Nonce
@@ -60,8 +63,8 @@ async def _generate_vrf(
     nb_executors: int,
     nb_bytes: int,
     vrf_function: ItemHash,
-) -> VRFResponse:
-    executor_selection_policy = ExecuteOnAleph(vm_function=vrf_function)
+    executor_selection_policy: ExecutorSelectionPolicy,
+) -> PublishedVRFResponse:
     executors = await executor_selection_policy.select_executors(nb_executors)
     selected_nodes_json = json.dumps(
         [executor.node for executor in executors], default=pydantic_encoder
@@ -118,9 +121,10 @@ async def _generate_vrf(
         aleph_client=aleph_client, data=vrf_response, ref=ref
     )
 
-    vrf_response.message_hash = response_item_hash
-
-    return vrf_response
+    published_response = PublishedVRFResponse.from_vrf_response(
+        vrf_response=vrf_response, message_hash=response_item_hash
+    )
+    return published_response
 
 
 async def generate_vrf(
@@ -129,7 +133,10 @@ async def generate_vrf(
     nb_bytes: Optional[int] = None,
     vrf_function: Optional[ItemHash] = None,
     aleph_api_server: Optional[str] = None,
+    executor_selection_policy: Optional[ExecutorSelectionPolicy] = None,
 ):
+    vrf_function = vrf_function or settings.FUNCTION
+
     async with AuthenticatedAlephClient(
         account=account, api_server=aleph_api_server or settings.API_HOST
     ) as aleph_client:
@@ -138,6 +145,8 @@ async def generate_vrf(
             nb_executors=nb_executors or settings.NB_EXECUTORS,
             nb_bytes=nb_bytes or settings.NB_BYTES,
             vrf_function=vrf_function or settings.FUNCTION,
+            executor_selection_policy=executor_selection_policy
+            or ExecuteOnAleph(vm_function=vrf_function),
         )
 
 
@@ -149,7 +158,9 @@ async def send_generate_requests(
     generate_tasks = []
     for executor in executors:
         url = f"{executor.api_url}/{VRF_FUNCTION_GENERATE_PATH}/{request_item_hash}"
-        generate_tasks.append(asyncio.create_task(post_node_vrf(url, PublishedVRFResponseHash)))
+        generate_tasks.append(
+            asyncio.create_task(post_node_vrf(url, PublishedVRFResponseHash))
+        )
 
     vrf_generated_responses = await asyncio.gather(
         *generate_tasks, return_exceptions=True
