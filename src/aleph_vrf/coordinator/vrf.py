@@ -4,7 +4,7 @@ import logging
 import random
 from hashlib import sha3_256
 from pathlib import Path
-from typing import Any, Dict, List, Type, TypeVar, Union
+from typing import Dict, List, Type, TypeVar, Union
 from uuid import uuid4
 
 import aiohttp
@@ -15,9 +15,9 @@ from aleph_message.status import MessageStatus
 from pydantic import BaseModel
 from pydantic.json import pydantic_encoder
 
+from aleph_vrf.coordinator.executor_selection import ExecuteOnAleph
 from aleph_vrf.models import (
     CRNVRFResponse,
-    Node,
     VRFRequest,
     VRFResponse,
     PublishedVRFResponseHash,
@@ -59,73 +59,12 @@ async def post_node_vrf(url: str, model: Type[M]) -> M:
             return model.parse_obj(response["data"])
 
 
-async def _get_corechannel_aggregate() -> Dict[str, Any]:
-    async with aiohttp.ClientSession(settings.API_HOST) as session:
-        url = (
-            f"/api/v0/aggregates/{settings.CORECHANNEL_AGGREGATE_ADDRESS}.json?"
-            f"keys={settings.CORECHANNEL_AGGREGATE_KEY}"
-        )
-        async with session.get(url) as response:
-            if response.status != 200:
-                raise ValueError(f"CRN list not available")
-
-            return await response.json()
-
-
-def _get_unauthorized_node_list() -> List[str]:
-    unauthorized_nodes_list_path = Path(__file__).with_name(
-        "unauthorized_node_list.json"
-    )
-    if unauthorized_nodes_list_path.is_file():
-        with open(unauthorized_nodes_list_path, "rb") as fd:
-            return json.load(fd)
-
-    return []
-
-
-async def select_random_executors(
-    node_amount: int, unauthorized_nodes: List[str]
-) -> List[Executor]:
-    node_list: List[Executor] = []
-
-    content = await _get_corechannel_aggregate()
-
-    if (
-        not content["data"]["corechannel"]
-        or not content["data"]["corechannel"]["resource_nodes"]
-    ):
-        raise ValueError(f"Bad CRN list format")
-
-    resource_nodes = content["data"]["corechannel"]["resource_nodes"]
-
-    for resource_node in resource_nodes:
-        # Filter nodes by score, with linked status and remove unauthorized nodes
-        if (
-            resource_node["status"] == "linked"
-            and resource_node["score"] > 0.9
-            and resource_node["address"].strip("/") not in unauthorized_nodes
-        ):
-            node_address = resource_node["address"].strip("/")
-            node = ComputeResourceNode(
-                hash=resource_node["hash"],
-                address=node_address,
-                score=resource_node["score"],
-            )
-            node_list.append(AlephExecutor(node=node, vm_function=settings.FUNCTION))
-
-    if len(node_list) < node_amount:
-        raise ValueError(
-            f"Not enough CRNs linked, only {len(node_list)} available from {node_amount} requested"
-        )
-
-    # Randomize node order
-    return random.sample(node_list, min(node_amount, len(node_list)))
-
-
 async def generate_vrf(account: ETHAccount) -> VRFResponse:
     nb_executors = settings.NB_EXECUTORS
-    unauthorized_nodes = _get_unauthorized_node_list()
-    executors = await select_random_executors(nb_executors, unauthorized_nodes)
+    vm_function = settings.FUNCTION
+
+    executor_selection_policy = ExecuteOnAleph(vm_function=vm_function)
+    executors = await executor_selection_policy.select_executors(nb_executors)
     selected_nodes_json = json.dumps(
         [executor.node for executor in executors], default=pydantic_encoder
     ).encode(encoding="utf-8")
