@@ -1,10 +1,8 @@
 import asyncio
 import json
 import logging
-import random
 from hashlib import sha3_256
-from pathlib import Path
-from typing import Dict, List, Type, TypeVar, Union
+from typing import Dict, List, Type, TypeVar, Union, Optional
 from uuid import uuid4
 
 import aiohttp
@@ -24,8 +22,6 @@ from aleph_vrf.models import (
     PublishedVRFRandomBytes,
     VRFResponseHash,
     Executor,
-    AlephExecutor,
-    ComputeResourceNode,
 )
 from aleph_vrf.settings import settings
 from aleph_vrf.types import RequestId, Nonce
@@ -59,11 +55,13 @@ async def post_node_vrf(url: str, model: Type[M]) -> M:
             return model.parse_obj(response["data"])
 
 
-async def generate_vrf(account: ETHAccount) -> VRFResponse:
-    nb_executors = settings.NB_EXECUTORS
-    vm_function = settings.FUNCTION
-
-    executor_selection_policy = ExecuteOnAleph(vm_function=vm_function)
+async def _generate_vrf(
+    aleph_client: AuthenticatedAlephClient,
+    nb_executors: int,
+    nb_bytes: int,
+    vrf_function: ItemHash,
+) -> VRFResponse:
+    executor_selection_policy = ExecuteOnAleph(vm_function=vrf_function)
     executors = await executor_selection_policy.select_executors(nb_executors)
     selected_nodes_json = json.dumps(
         [executor.node for executor in executors], default=pydantic_encoder
@@ -72,17 +70,19 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
     nonce = generate_nonce()
 
     vrf_request = VRFRequest(
-        nb_bytes=settings.NB_BYTES,
+        nb_bytes=nb_bytes,
         nb_executors=nb_executors,
         nonce=nonce,
-        vrf_function=ItemHash(settings.FUNCTION),
+        vrf_function=vrf_function,
         request_id=RequestId(str(uuid4())),
         node_list_hash=sha3_256(selected_nodes_json).hexdigest(),
     )
 
     ref = f"vrf_{vrf_request.request_id}_request"
 
-    request_item_hash = await publish_data(vrf_request, ref, account)
+    request_item_hash = await publish_data(
+        aleph_client=aleph_client, data=vrf_request, ref=ref
+    )
 
     logger.debug(f"Generated VRF request with item_hash {request_item_hash}")
 
@@ -114,11 +114,31 @@ async def generate_vrf(account: ETHAccount) -> VRFResponse:
 
     logger.debug(f"Publishing final VRF summary")
 
-    response_item_hash = await publish_data(vrf_response, ref, account)
+    response_item_hash = await publish_data(
+        aleph_client=aleph_client, data=vrf_response, ref=ref
+    )
 
     vrf_response.message_hash = response_item_hash
 
     return vrf_response
+
+
+async def generate_vrf(
+    account: ETHAccount,
+    nb_executors: Optional[int] = None,
+    nb_bytes: Optional[int] = None,
+    vrf_function: Optional[ItemHash] = None,
+    aleph_api_server: Optional[str] = None,
+):
+    async with AuthenticatedAlephClient(
+        account=account, api_server=aleph_api_server or settings.API_HOST
+    ) as aleph_client:
+        return await _generate_vrf(
+            aleph_client=aleph_client,
+            nb_executors=nb_executors or settings.NB_EXECUTORS,
+            nb_bytes=nb_bytes or settings.NB_BYTES,
+            vrf_function=vrf_function or settings.FUNCTION,
+        )
 
 
 async def send_generate_requests(
@@ -219,10 +239,10 @@ def generate_final_vrf(
     final_random_number = bytes_to_int(final_random_nb_bytes)
 
     return VRFResponse(
-        nb_bytes=settings.NB_BYTES,
+        nb_bytes=vrf_request.nb_bytes,
         nb_executors=nb_executors,
         nonce=nonce,
-        vrf_function=settings.FUNCTION,
+        vrf_function=vrf_request.vrf_function,
         request_id=vrf_request.request_id,
         nodes=nodes_responses,
         random_number=str(final_random_number),
@@ -230,26 +250,25 @@ def generate_final_vrf(
 
 
 async def publish_data(
-    data: Union[VRFRequest, VRFResponse], ref: str, account: ETHAccount
+    aleph_client: AuthenticatedAlephClient,
+    data: Union[VRFRequest, VRFResponse],
+    ref: str,
 ) -> ItemHash:
     channel = f"vrf_{data.request_id}"
 
-    logger.debug(f"Publishing message to {settings.API_HOST}")
+    logger.debug(f"Publishing message to {aleph_client.api_server}")
 
-    async with AuthenticatedAlephClient(
-        account=account, api_server=settings.API_HOST, allow_unix_sockets=False
-    ) as client:
-        message, status = await client.create_post(
-            post_type="vrf_library_post",
-            post_content=data,
-            channel=channel,
-            ref=ref,
-            sync=True,
+    message, status = await aleph_client.create_post(
+        post_type="vrf_library_post",
+        post_content=data,
+        channel=channel,
+        ref=ref,
+        sync=True,
+    )
+
+    if status != MessageStatus.PROCESSED:
+        raise ValueError(
+            f"Message could not be processed for ref {ref} and item_hash {message.item_hash}"
         )
 
-        if status != MessageStatus.PROCESSED:
-            raise ValueError(
-                f"Message could not be processed for ref {ref} and item_hash {message.item_hash}"
-            )
-
-        return message.item_hash
+    return message.item_hash
