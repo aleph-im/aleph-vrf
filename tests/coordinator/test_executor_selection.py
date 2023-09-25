@@ -1,8 +1,9 @@
 from typing import Any, Dict
 
 import pytest
+from aleph_message.models import ItemHash
 
-from aleph_vrf.coordinator.vrf import select_random_executors
+from aleph_vrf.coordinator.executor_selection import ExecuteOnAleph
 
 
 @pytest.fixture
@@ -136,21 +137,21 @@ def fixture_nodes_aggregate() -> Dict[str, Any]:
 @pytest.mark.asyncio
 async def test_select_random_nodes(fixture_nodes_aggregate: Dict[str, Any], mocker):
     network_fixture = mocker.patch(
-        "aleph_vrf.coordinator.vrf._get_corechannel_aggregate",
+        "aleph_vrf.coordinator.executor_selection._get_corechannel_aggregate",
         return_value=fixture_nodes_aggregate,
     )
+    executor_selection_policy = ExecuteOnAleph(vm_function=ItemHash("cafe" * 16))
 
-    executors = await select_random_executors(3, [])
+    executors = await executor_selection_policy.select_executors(3)
     # Sanity check, avoid network accesses
     network_fixture.assert_called_once()
 
     assert len(executors) == 3
 
+    resource_nodes = fixture_nodes_aggregate["data"]["corechannel"]["resource_nodes"]
     with pytest.raises(ValueError) as exception:
-        resource_nodes = fixture_nodes_aggregate["data"]["corechannel"][
-            "resource_nodes"
-        ]
-        await select_random_executors(len(resource_nodes), [])
+        await executor_selection_policy.select_executors(len(resource_nodes))
+
     assert (
         str(exception.value)
         == f"Not enough CRNs linked, only 4 available from 5 requested"
@@ -162,23 +163,30 @@ async def test_select_random_nodes_with_unauthorized(
     fixture_nodes_aggregate: Dict[str, Any], mocker
 ):
     network_fixture = mocker.patch(
-        "aleph_vrf.coordinator.vrf._get_corechannel_aggregate",
+        "aleph_vrf.coordinator.executor_selection._get_corechannel_aggregate",
         return_value=fixture_nodes_aggregate,
     )
-
+    blacklist = ["https://aleph2.serverrg.eu"]
+    executor_selection_policy = ExecuteOnAleph(vm_function=ItemHash("cafe" * 16))
+    mocker.patch.object(
+        executor_selection_policy, "_get_unauthorized_nodes", return_value=blacklist
+    )
+    executors = await executor_selection_policy.select_executors(3)
     # Sanity check, avoid network accesses
-    assert network_fixture.called_once
+    network_fixture.assert_called_once()
 
-    executors = await select_random_executors(3, ["https://aleph2.serverrg.eu"])
     assert len(executors) == 3
+
+    for blacklisted_node_address in blacklist:
+        assert blacklisted_node_address not in [
+            executor.node.address for executor in executors
+        ]
 
     with pytest.raises(ValueError) as exception:
         resource_nodes = fixture_nodes_aggregate["data"]["corechannel"][
             "resource_nodes"
         ]
-        _ = await select_random_executors(
-            len(resource_nodes) - 1, ["https://aleph2.serverrg.eu"]
-        )
+        _ = await executor_selection_policy.select_executors(len(resource_nodes) - 1)
     assert (
         str(exception.value)
         == f"Not enough CRNs linked, only 3 available from 4 requested"

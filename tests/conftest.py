@@ -23,7 +23,7 @@ from aleph_vrf.settings import settings
 from mock_ccn import app as mock_ccn_app
 
 
-def wait_for_server(host: str, port: int, nb_retries: int = 3, wait_time: int = 0.1):
+def wait_for_server(host: str, port: int, nb_retries: int = 10, wait_time: int = 0.1):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(5)
 
@@ -33,6 +33,9 @@ def wait_for_server(host: str, port: int, nb_retries: int = 3, wait_time: int = 
             sock.connect((host, port))
         except ConnectionError:
             retries += 1
+            if retries == nb_retries:
+                raise
+
             sleep(wait_time)
             continue
 
