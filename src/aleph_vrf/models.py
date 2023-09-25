@@ -1,19 +1,41 @@
-from typing import List, Optional
+from typing import List, Optional, overload
 from typing import TypeVar, Generic
 from uuid import uuid4
 
 import fastapi
 from aleph_message.models import ItemHash, PostMessage
-from pydantic import BaseModel, ValidationError, Field
+from aleph_message.models.abstract import HashableModel
+from pydantic import BaseModel
+from pydantic import ValidationError, Field
 from pydantic.generics import GenericModel
 
 from aleph_vrf.types import Nonce, RequestId, ExecutionId
 
 
-class Node(BaseModel):
-    hash: str
+class Node(HashableModel):
     address: str
+
+
+class ComputeResourceNode(Node):
+    hash: str
     score: float
+
+
+class Executor(HashableModel):
+    node: Node
+
+    @property
+    def api_url(self) -> str:
+        return self.node.address
+
+
+class AlephExecutor(Executor):
+    node: ComputeResourceNode
+    vm_function: str
+
+    @property
+    def api_url(self) -> str:
+        return f"{self.node.address}/vm/{self.vm_function}"
 
 
 class VRFRequest(BaseModel):
@@ -63,7 +85,7 @@ class PublishedVRFResponseHash(VRFResponseHash):
 
     @classmethod
     def from_vrf_response_hash(
-            cls, vrf_response_hash: VRFResponseHash, message_hash: ItemHash
+        cls, vrf_response_hash: VRFResponseHash, message_hash: ItemHash
     ) -> "PublishedVRFResponseHash":
         return cls(
             nb_bytes=vrf_response_hash.nb_bytes,
@@ -77,7 +99,7 @@ class PublishedVRFResponseHash(VRFResponseHash):
 
 
 def generate_response_hash_from_message(
-        message: PostMessage,
+    message: PostMessage,
 ) -> PublishedVRFResponseHash:
     content = message.content.content
     try:
@@ -107,7 +129,7 @@ class PublishedVRFRandomBytes(VRFRandomBytes):
 
     @classmethod
     def from_vrf_random_bytes(
-            cls, vrf_random_bytes: VRFRandomBytes, message_hash: ItemHash
+        cls, vrf_random_bytes: VRFRandomBytes, message_hash: ItemHash
     ) -> "PublishedVRFRandomBytes":
         return cls(
             request_id=vrf_random_bytes.request_id,

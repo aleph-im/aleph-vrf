@@ -2,7 +2,7 @@ from typing import Any, Dict
 
 import pytest
 
-from aleph_vrf.coordinator.vrf import select_random_nodes
+from aleph_vrf.coordinator.vrf import select_random_executors
 
 
 @pytest.fixture
@@ -140,39 +140,46 @@ async def test_select_random_nodes(fixture_nodes_aggregate: Dict[str, Any], mock
         return_value=fixture_nodes_aggregate,
     )
 
-    nodes = await select_random_nodes(3, [])
+    executors = await select_random_executors(3, [])
     # Sanity check, avoid network accesses
     network_fixture.assert_called_once()
-    assert len(nodes) == 3
+
+    assert len(executors) == 3
 
     with pytest.raises(ValueError) as exception:
         resource_nodes = fixture_nodes_aggregate["data"]["corechannel"][
             "resource_nodes"
         ]
-        await select_random_nodes(len(resource_nodes), [])
+        await select_random_executors(len(resource_nodes), [])
     assert (
         str(exception.value)
         == f"Not enough CRNs linked, only 4 available from 5 requested"
     )
 
+
 @pytest.mark.asyncio
-async def test_select_random_nodes_with_unauthorized(fixture_nodes_aggregate: Dict[str, Any], mocker):
+async def test_select_random_nodes_with_unauthorized(
+    fixture_nodes_aggregate: Dict[str, Any], mocker
+):
     network_fixture = mocker.patch(
         "aleph_vrf.coordinator.vrf._get_corechannel_aggregate",
         return_value=fixture_nodes_aggregate,
     )
 
-    nodes = await select_random_nodes(3, ["https://aleph2.serverrg.eu"])
     # Sanity check, avoid network accesses
-    network_fixture.assert_called_once()
-    assert len(nodes) == 3
+    assert network_fixture.called_once
+
+    executors = await select_random_executors(3, ["https://aleph2.serverrg.eu"])
+    assert len(executors) == 3
 
     with pytest.raises(ValueError) as exception:
         resource_nodes = fixture_nodes_aggregate["data"]["corechannel"][
             "resource_nodes"
         ]
-        await select_random_nodes(len(resource_nodes) - 1, ["https://aleph2.serverrg.eu"])
+        _ = await select_random_executors(
+            len(resource_nodes) - 1, ["https://aleph2.serverrg.eu"]
+        )
     assert (
-            str(exception.value)
-            == f"Not enough CRNs linked, only 3 available from 4 requested"
+        str(exception.value)
+        == f"Not enough CRNs linked, only 3 available from 4 requested"
     )
