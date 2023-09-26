@@ -149,7 +149,7 @@ async def send_generate_requests(
     generate_tasks = []
     for executor in executors:
         url = f"{executor.api_url}/{VRF_FUNCTION_GENERATE_PATH}/{request_item_hash}"
-        generate_tasks.append(asyncio.create_task(post_node_vrf(url, VRFResponseHash)))
+        generate_tasks.append(asyncio.create_task(post_node_vrf(url, PublishedVRFResponseHash)))
 
     vrf_generated_responses = await asyncio.gather(
         *generate_tasks, return_exceptions=True
