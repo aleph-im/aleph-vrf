@@ -2,6 +2,8 @@ import logging
 import sys
 from typing import Dict, Union, Set
 
+from aleph_vrf.exceptions import AlephNetworkError
+
 # Annotated is only available in Python 3.9+
 if sys.version_info < (3, 9):
     from typing_extensions import Annotated
@@ -194,8 +196,9 @@ async def publish_data(
     )
 
     if status != MessageStatus.PROCESSED:
-        raise ValueError(
-            f"Message could not be processed for request {data.request_id} and execution_id {data.execution_id}"
+        raise AlephNetworkError(
+            f"Message could not be processed for request {data.request_id} "
+            f"and execution_id {data.execution_id}"
         )
 
     return message.item_hash

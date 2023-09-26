@@ -4,6 +4,7 @@ import pytest
 from aleph_message.models import ItemHash
 
 from aleph_vrf.coordinator.executor_selection import ExecuteOnAleph
+from aleph_vrf.exceptions import NotEnoughExecutors
 
 
 @pytest.fixture
@@ -149,13 +150,11 @@ async def test_select_random_nodes(fixture_nodes_aggregate: Dict[str, Any], mock
     assert len(executors) == 3
 
     resource_nodes = fixture_nodes_aggregate["data"]["corechannel"]["resource_nodes"]
-    with pytest.raises(ValueError) as exception:
+    with pytest.raises(NotEnoughExecutors) as exception:
         await executor_selection_policy.select_executors(len(resource_nodes))
 
-    assert (
-        str(exception.value)
-        == f"Not enough CRNs linked, only 4 available from 5 requested"
-    )
+    assert exception.value.available == 4
+    assert exception.value.requested == len(resource_nodes)
 
 
 @pytest.mark.asyncio
@@ -182,12 +181,11 @@ async def test_select_random_nodes_with_unauthorized(
             executor.node.address for executor in executors
         ]
 
-    with pytest.raises(ValueError) as exception:
+    with pytest.raises(NotEnoughExecutors) as exception:
         resource_nodes = fixture_nodes_aggregate["data"]["corechannel"][
             "resource_nodes"
         ]
         _ = await executor_selection_policy.select_executors(len(resource_nodes) - 1)
-    assert (
-        str(exception.value)
-        == f"Not enough CRNs linked, only 3 available from 4 requested"
-    )
+
+    assert exception.value.available == 3
+    assert exception.value.requested == 4
