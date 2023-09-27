@@ -9,6 +9,7 @@ from aleph_message.models import PostMessage, ItemHash
 from aleph_vrf.coordinator.executor_selection import UsePredeterminedExecutors
 from aleph_vrf.coordinator.vrf import generate_vrf, post_node_vrf
 from aleph_vrf.coordinator.vrf import send_generate_requests
+from aleph_vrf.exceptions import RandomNumberPublicationFailed, HashValidationFailed, RandomNumberGenerationFailed
 from aleph_vrf.models import (
     Executor,
     Node,
@@ -145,7 +146,7 @@ async def test_unresponsive_executor(
     executors = [Executor(node=Node(address=address)) for address in executor_servers]
     executors.append(Executor(node=Node(address="http://127.0.0.1:404")))
 
-    with pytest.raises(ValueError):
+    with pytest.raises(RandomNumberGenerationFailed):
         _vrf_response = await generate_vrf(
             account=mock_account,
             nb_executors=len(executors),
@@ -173,7 +174,7 @@ async def test_malicious_executor(
     executors = [Executor(node=Node(address=address)) for address in executor_servers]
     executors.append(Executor(node=Node(address=malicious_executor)))
 
-    with pytest.raises(ValueError) as e:
+    with pytest.raises(HashValidationFailed):
         _vrf_response = await generate_vrf(
             account=mock_account,
             nb_executors=len(executors),
@@ -181,8 +182,6 @@ async def test_malicious_executor(
             aleph_api_server=mock_ccn,
             executor_selection_policy=UsePredeterminedExecutors(executors),
         )
-
-    print(e)
 
 
 async def send_generate_requests_and_call_publish(
@@ -195,11 +194,10 @@ async def send_generate_requests_and_call_publish(
     )
 
     for executor, response in generate_response.items():
-        random_number = await post_node_vrf(
+        _random_number = await post_node_vrf(
             f"{executor.api_url}/publish/{response.message_hash}",
             PublishedVRFRandomBytes,
         )
-        print(random_number)
         # We're only interested in one response for this test
         break
 
@@ -229,7 +227,7 @@ async def test_call_publish_before_coordinator(
     )
     executors = [Executor(node=Node(address=address)) for address in executor_servers]
 
-    with pytest.raises(ValueError):
+    with pytest.raises(RandomNumberPublicationFailed):
         _vrf_response = await generate_vrf(
             account=mock_account,
             nb_executors=len(executors),

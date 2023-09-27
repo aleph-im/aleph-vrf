@@ -7,6 +7,7 @@ import random
 import aiohttp
 from aleph_message.models import ItemHash
 
+from aleph_vrf.exceptions import NotEnoughExecutors, AlephNetworkError
 from aleph_vrf.models import Executor, Node, AlephExecutor, ComputeResourceNode
 from aleph_vrf.settings import settings
 
@@ -25,7 +26,7 @@ async def _get_corechannel_aggregate() -> Dict[str, Any]:
         )
         async with session.get(url) as response:
             if response.status != 200:
-                raise ValueError(f"CRN list not available")
+                raise AlephNetworkError(f"CRN list not available")
 
             return await response.json()
 
@@ -42,7 +43,7 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
             not content["data"]["corechannel"]
             or not content["data"]["corechannel"]["resource_nodes"]
         ):
-            raise ValueError(f"Bad CRN list format")
+            raise AlephNetworkError(f"Bad CRN list format")
 
         resource_nodes = content["data"]["corechannel"]["resource_nodes"]
 
@@ -82,10 +83,7 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
         ]
 
         if len(executors) < nb_executors:
-            raise ValueError(
-                f"Not enough CRNs linked, only {len(executors)} "
-                f"available from {nb_executors} requested"
-            )
+            raise NotEnoughExecutors(requested=nb_executors, available=len(executors))
         return random.sample(executors, nb_executors)
 
 
@@ -95,9 +93,8 @@ class UsePredeterminedExecutors(ExecutorSelectionPolicy):
 
     async def select_executors(self, nb_executors: int) -> List[Executor]:
         if len(self.executors) < nb_executors:
-            raise ValueError(
-                f"Not enough nodes available, only {len(self.executors)} "
-                f"available from {nb_executors} requested"
+            raise NotEnoughExecutors(
+                requested=nb_executors, available=len(self.executors)
             )
 
         # If we request fewer executors than available, return the N first executors.

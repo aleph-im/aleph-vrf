@@ -17,6 +17,14 @@ from aleph_vrf.coordinator.executor_selection import (
     ExecuteOnAleph,
     ExecutorSelectionPolicy,
 )
+from aleph_vrf.exceptions import (
+    HashValidationFailed,
+    AlephNetworkError,
+    ExecutorHttpError,
+    RandomNumberPublicationFailed,
+    RandomNumberGenerationFailed,
+    HashesDoNotMatch,
+)
 from aleph_vrf.models import (
     CRNVRFResponse,
     VRFRequest,
@@ -51,7 +59,9 @@ async def post_node_vrf(url: str, model: Type[M]) -> M:
     async with aiohttp.ClientSession() as session:
         async with session.post(url, timeout=60) as resp:
             if resp.status != 200:
-                raise ValueError(f"VRF node request failed on {url}")
+                raise ExecutorHttpError(
+                    url=url, status_code=resp.status, response_text=await resp.text()
+                )
 
             response = await resp.json()
 
@@ -169,9 +179,7 @@ async def send_generate_requests(
 
     for executor, result in generate_results.items():
         if isinstance(result, Exception):
-            raise ValueError(
-                f"Generate response not found for executor {executor} on request_id {request_id}"
-            )
+            raise RandomNumberGenerationFailed(executor=executor) from result
 
     return generate_results
 
@@ -196,7 +204,7 @@ async def send_publish_requests(
 
     for executor, result in publish_results.items():
         if isinstance(result, Exception):
-            raise ValueError(f"Publish response not found for {executor}")
+            raise RandomNumberPublicationFailed(executor=executor) from result
 
     return publish_results
 
@@ -211,25 +219,26 @@ def generate_final_vrf(
     nodes_responses = []
     random_numbers_list = []
     for executor, vrf_publish_response in vrf_publish_result.items():
-        if (
-            vrf_generated_result[executor].random_bytes_hash
-            != vrf_publish_response.random_bytes_hash
+        if (generation_hash := vrf_generated_result[executor].random_bytes_hash) != (
+            publication_hash := vrf_publish_response.random_bytes_hash
         ):
-            generated_hash = vrf_publish_response.random_bytes_hash
-            publish_hash = vrf_publish_response.random_bytes_hash
-            raise ValueError(
-                f"Publish response hash ({publish_hash})"
-                f"different from generated one ({generated_hash})"
+            raise HashesDoNotMatch(
+                executor=executor,
+                generation_hash=generation_hash,
+                publication_hash=publication_hash,
             )
 
         verified = verify(
             binary_to_bytes(vrf_publish_response.random_bytes),
             nonce,
-            vrf_publish_response.random_bytes_hash,
+            generation_hash,
         )
         if not verified:
-            execution = vrf_publish_response.execution_id
-            raise ValueError(f"Failed hash verification for {execution}")
+            raise HashValidationFailed(
+                random_bytes=vrf_publish_response,
+                random_number_hash=generation_hash,
+                executor=executor,
+            )
 
         random_numbers_list.append(
             int_to_bytes(int(vrf_publish_response.random_number))
@@ -278,7 +287,7 @@ async def publish_data(
     )
 
     if status != MessageStatus.PROCESSED:
-        raise ValueError(
+        raise AlephNetworkError(
             f"Message could not be processed for ref {ref} and item_hash {message.item_hash}"
         )
 
