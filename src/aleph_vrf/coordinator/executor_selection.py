@@ -87,3 +87,18 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
                 f"available from {nb_executors} requested"
             )
         return random.sample(executors, nb_executors)
+
+
+class UsePredeterminedExecutors(ExecutorSelectionPolicy):
+    def __init__(self, executors: List[Executor]):
+        self.executors = executors
+
+    async def select_executors(self, nb_executors: int) -> List[Executor]:
+        if len(self.executors) < nb_executors:
+            raise ValueError(
+                f"Not enough nodes available, only {len(self.executors)} "
+                f"available from {nb_executors} requested"
+            )
+
+        # If we request fewer executors than available, return the N first executors.
+        return self.executors[:nb_executors]

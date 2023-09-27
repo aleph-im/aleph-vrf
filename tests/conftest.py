@@ -9,9 +9,9 @@
 import multiprocessing
 import os
 import socket
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack, AsyncExitStack
 from time import sleep
-from typing import Union
+from typing import Union, Tuple, ContextManager
 
 import aiohttp
 import fastapi.applications
@@ -21,6 +21,7 @@ import uvicorn
 
 from aleph_vrf.settings import settings
 from mock_ccn import app as mock_ccn_app
+from malicious_executor import app as malicious_executor_app
 
 
 def wait_for_server(host: str, port: int, nb_retries: int = 10, wait_time: int = 0.1):
@@ -45,7 +46,7 @@ def wait_for_server(host: str, port: int, nb_retries: int = 10, wait_time: int =
 @contextmanager
 def run_http_app(
     app: Union[str, fastapi.applications.ASGIApp], host: str, port: int
-) -> multiprocessing.Process:
+) -> ContextManager[multiprocessing.Process]:
     uvicorn_process = multiprocessing.Process(
         target=uvicorn.run, args=(app,), kwargs={"host": host, "port": port}
     )
@@ -82,21 +83,68 @@ def mock_ccn() -> str:
 
 
 @pytest_asyncio.fixture
-async def mock_ccn_client(mock_ccn: str):
+async def mock_ccn_client(mock_ccn: str) -> aiohttp.ClientSession:
     async with aiohttp.ClientSession(mock_ccn) as client:
         yield client
+
+
+@contextmanager
+def _executor_servers(
+    nb_executors: int, host: str = "127.0.0.1", start_port: int = 8081
+) -> ContextManager[Tuple[str]]:
+    ports = list(range(start_port, start_port + nb_executors))
+
+    with ExitStack() as cm:
+        _processes = [
+            cm.enter_context(
+                run_http_app(app="aleph_vrf.executor.main:app", host=host, port=port)
+            )
+            for port in ports
+        ]
+        yield tuple(f"http://{host}:{port}" for port in ports)
 
 
 @pytest.fixture
 def executor_server(mock_ccn: str) -> str:
     assert mock_ccn, "The mock CCN server must be running"
 
-    host, port = "127.0.0.1", 8081
-    with run_http_app(app="aleph_vrf.executor.main:app", host=host, port=port):
-        yield f"http://{host}:{port}"
+    with _executor_servers(nb_executors=1) as executor_urls:
+        yield executor_urls[0]
+
+
+@pytest_asyncio.fixture
+def executor_servers(mock_ccn: str, request) -> Tuple[str]:
+    assert mock_ccn, "The mock CCN server must be running"
+
+    nb_executors = request.param
+    with _executor_servers(nb_executors=nb_executors) as executor_urls:
+        yield executor_urls
 
 
 @pytest_asyncio.fixture
 async def executor_client(executor_server: str) -> aiohttp.ClientSession:
     async with aiohttp.ClientSession(executor_server) as client:
         yield client
+
+
+@pytest_asyncio.fixture
+async def executor_clients(
+    executor_servers: Tuple[str],
+) -> Tuple[aiohttp.ClientSession]:
+    async with AsyncExitStack() as cm:
+        clients = [
+            cm.enter_async_context(aiohttp.ClientSession(executor_server))
+            for executor_server in executor_servers
+        ]
+        yield clients
+
+@pytest.fixture
+def malicious_executor() -> str:
+    """
+    Spawns an executor that returns an incorrect random number.
+    """
+    host, port = "127.0.0.1", 9000
+    url = f"http://{host}:{port}"
+
+    with run_http_app(app=malicious_executor_app, host=host, port=port):
+        yield url

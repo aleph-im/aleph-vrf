@@ -14,7 +14,7 @@ from fastapi import FastAPI
 
 logger.debug("local imports")
 from aleph_vrf.coordinator.vrf import generate_vrf
-from aleph_vrf.models import APIResponse, VRFResponse
+from aleph_vrf.models import APIResponse, PublishedVRFResponse
 
 logger.debug("imports done")
 
@@ -38,7 +38,7 @@ async def receive_vrf() -> APIResponse:
     private_key = get_fallback_private_key()
     account = ETHAccount(private_key=private_key)
 
-    response: Union[VRFResponse, Dict[str, str]]
+    response: Union[PublishedVRFResponse, Dict[str, str]]
 
     try:
         response = await generate_vrf(account)

@@ -160,7 +160,25 @@ class VRFResponse(BaseModel):
     request_id: RequestId
     nodes: List[CRNVRFResponse]
     random_number: str
-    message_hash: Optional[ItemHash] = None
+
+
+class PublishedVRFResponse(VRFResponse):
+    message_hash: ItemHash
+
+    @classmethod
+    def from_vrf_response(
+        cls, vrf_response: VRFResponse, message_hash: ItemHash
+    ) -> "PublishedVRFResponse":
+        return cls(
+            nb_bytes=vrf_response.nb_bytes,
+            nb_executors=vrf_response.nb_executors,
+            nonce=vrf_response.nonce,
+            vrf_function=vrf_response.vrf_function,
+            request_id=vrf_response.request_id,
+            nodes=vrf_response.nodes,
+            random_number=vrf_response.random_number,
+            message_hash=message_hash,
+        )
 
 
 M = TypeVar("M", bound=BaseModel)
