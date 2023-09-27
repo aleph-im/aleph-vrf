@@ -19,8 +19,6 @@ from aleph_vrf.types import ExecutionId, RequestId
 logger = logging.getLogger(__name__)
 
 logger.debug("import aleph_client")
-from aleph.sdk.chains.common import get_fallback_private_key
-from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client import AlephClient, AuthenticatedAlephClient
 from aleph.sdk.vm.app import AlephApp
 from aleph_message.models import ItemHash, PostMessage
@@ -94,6 +92,10 @@ async def receive_generate(
         AuthenticatedAlephClient, Depends(authenticated_aleph_client)
     ],
 ) -> APIResponse[PublishedVRFResponseHash]:
+    """
+    Generates a random number and returns its SHA3 hash.
+    """
+
     global SAVED_GENERATED_BYTES, ANSWERED_REQUESTS
 
     message = await _get_message(client=aleph_client, item_hash=vrf_request)
@@ -145,6 +147,12 @@ async def receive_publish(
         AuthenticatedAlephClient, Depends(authenticated_aleph_client)
     ],
 ) -> APIResponse[PublishedVRFRandomBytes]:
+    """
+    Publishes the random number associated with the specified message hash.
+    If a user attempts to call this endpoint several times for the same message hash,
+    data will only be returned on the first call.
+    """
+
     global SAVED_GENERATED_BYTES
 
     message = await _get_message(client=aleph_client, item_hash=hash_message)
@@ -183,6 +191,10 @@ async def publish_data(
     data: Union[VRFResponseHash, VRFRandomBytes],
     ref: str,
 ) -> ItemHash:
+    """
+    Publishes the generation/publication artefacts on the aleph.im network as POST messages.
+    """
+
     channel = f"vrf_{data.request_id}"
 
     message, status = await aleph_client.create_post(

@@ -1,6 +1,7 @@
 FROM debian:bullseye
 
 RUN apt-get update && apt-get -y upgrade && apt-get install -y \
+     git \
      libsecp256k1-dev \
      python3-pip \
      python3-venv \

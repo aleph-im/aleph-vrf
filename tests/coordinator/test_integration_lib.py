@@ -93,6 +93,10 @@ async def test_normal_flow(
     nb_executors: int,
     nb_bytes: int,
 ):
+    """
+    Test that the coordinator can call executors to generate a random number.
+    """
+
     executors = [Executor(node=Node(address=address)) for address in executor_servers]
 
     vrf_response = await generate_vrf(
@@ -105,8 +109,6 @@ async def test_normal_flow(
     assert vrf_response.nb_executors == nb_executors
     assert len(vrf_response.nodes) == nb_executors
     assert vrf_response.nb_bytes == nb_bytes
-    # TODO: determine if this check makes sense as leading zeroes get removed.
-    # assert int(vrf_response.random_number).bit_length() == nb_bytes * 8
 
     for executor_response in vrf_response.nodes:
         assert verify(
@@ -219,8 +221,8 @@ async def test_call_publish_before_coordinator(
     This should result in the coordinator call failing and an exception to be raised.
     """
 
-    # TODO
-    ...
+    # To simulate an attack, the simplest solution is to patch `send_generate_requests`
+    # with a function that does exactly the same and then calls /publish right after generation.
     mocker.patch(
         "aleph_vrf.coordinator.vrf.send_generate_requests",
         send_generate_requests_and_call_publish,

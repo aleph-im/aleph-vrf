@@ -1,3 +1,7 @@
+"""
+A simplified core channel node used for testing to avoid relying on the aleph.im network.
+"""
+
 import json
 import logging
 from enum import Enum

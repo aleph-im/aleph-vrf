@@ -113,6 +113,10 @@ def _executor_servers(
 
 @pytest.fixture
 def executor_server(mock_ccn: str) -> str:
+    """
+    Spawns one executor server, configured to use a fake CCN to read/post aleph messages.
+    """
+
     assert mock_ccn, "The mock CCN server must be running"
 
     with _executor_servers(nb_executors=1) as executor_urls:
@@ -121,6 +125,10 @@ def executor_server(mock_ccn: str) -> str:
 
 @pytest_asyncio.fixture
 def executor_servers(mock_ccn: str, request) -> Tuple[str]:
+    """
+    Spawns N executor servers, using the port range [start_port, start_port + N - 1].
+    """
+
     assert mock_ccn, "The mock CCN server must be running"
 
     nb_executors = request.param
@@ -130,6 +138,10 @@ def executor_servers(mock_ccn: str, request) -> Tuple[str]:
 
 @pytest_asyncio.fixture
 async def executor_client(executor_server: str) -> aiohttp.ClientSession:
+    """
+    Spawns an executor server and provides an aiohttp client to communicate with it.
+    """
+
     async with aiohttp.ClientSession(executor_server) as client:
         yield client
 
@@ -138,6 +150,10 @@ async def executor_client(executor_server: str) -> aiohttp.ClientSession:
 async def executor_clients(
     executor_servers: Tuple[str],
 ) -> Tuple[aiohttp.ClientSession]:
+    """
+    Spawns N executor servers and provides N aiohttp clients to communicate with them.
+    """
+
     async with AsyncExitStack() as cm:
         clients = [
             cm.enter_async_context(aiohttp.ClientSession(executor_server))
