@@ -1,6 +1,8 @@
 import logging
 from typing import Dict, Union
 
+from aleph_vrf.settings import settings
+
 logger = logging.getLogger(__name__)
 
 logger.debug("import aleph_client")
@@ -35,8 +37,7 @@ async def index():
 
 @app.post("/vrf")
 async def receive_vrf() -> APIResponse:
-    private_key = get_fallback_private_key()
-    account = ETHAccount(private_key=private_key)
+    account = settings.aleph_account()
 
     response: Union[PublishedVRFResponse, Dict[str, str]]
 

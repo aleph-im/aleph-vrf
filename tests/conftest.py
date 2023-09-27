@@ -18,6 +18,8 @@ import fastapi.applications
 import pytest
 import pytest_asyncio
 import uvicorn
+from aleph.sdk.chains.common import generate_key
+from hexbytes import HexBytes
 
 from aleph_vrf.settings import settings
 from mock_ccn import app as mock_ccn_app
@@ -116,6 +118,11 @@ def executor_server(mock_ccn: str) -> str:
 def executor_servers(mock_ccn: str, request) -> Tuple[str]:
     assert mock_ccn, "The mock CCN server must be running"
 
+    # Generate a private key for each executor, using `get_fallback_key()` several times
+    # on the same host can cause concurrency problems. All the executors will have the same
+    # private key because of this, but this should not be an issue for integration tests.
+    os.environ["ALEPH_VRF_ETHEREUM_PRIVATE_KEY"] = HexBytes(generate_key()).hex()
+
     nb_executors = request.param
     with _executor_servers(nb_executors=nb_executors) as executor_urls:
         yield executor_urls
@@ -137,6 +144,7 @@ async def executor_clients(
             for executor_server in executor_servers
         ]
         yield clients
+
 
 @pytest.fixture
 def malicious_executor() -> str:

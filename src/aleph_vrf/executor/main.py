@@ -54,9 +54,7 @@ app = AlephApp(http_app=http_app)
 
 
 async def authenticated_aleph_client() -> AuthenticatedAlephClient:
-    private_key = get_fallback_private_key()
-    account = ETHAccount(private_key=private_key)
-
+    account = settings.aleph_account()
     async with AuthenticatedAlephClient(
         account=account, api_server=settings.API_HOST
     ) as client:

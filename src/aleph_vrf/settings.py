@@ -1,3 +1,8 @@
+from typing import Optional
+
+from aleph.sdk.chains.common import get_fallback_private_key
+from aleph.sdk.chains.ethereum import ETHAccount
+from hexbytes import HexBytes
 from pydantic import BaseSettings, Field, HttpUrl
 
 
@@ -17,12 +22,22 @@ class Settings(BaseSettings):
         default="4992b4127d296b240bbb73058daea9bca09f717fa94767d6f4dc3ef53b4ef5ce",
         description="VRF function to use.",
     )
-    NB_EXECUTORS: int = Field(
-        default=32, description="Number of executors to use."
-    )
+    NB_EXECUTORS: int = Field(default=32, description="Number of executors to use.")
     NB_BYTES: int = Field(
         default=32, description="Number of bytes of the generated random number."
     )
+    ETHEREUM_PRIVATE_KEY: Optional[str] = Field(
+        default=None, description="Application private key to post to aleph.im."
+    )
+
+    def private_key(self) -> HexBytes:
+        if self.ETHEREUM_PRIVATE_KEY:
+            return HexBytes(self.ETHEREUM_PRIVATE_KEY)
+
+        return HexBytes(get_fallback_private_key())
+
+    def aleph_account(self) -> ETHAccount:
+        return ETHAccount(self.private_key())
 
     class Config:
         env_prefix = "ALEPH_VRF_"
