@@ -96,6 +96,11 @@ def _executor_servers(
 ) -> ContextManager[Tuple[str]]:
     ports = list(range(start_port, start_port + nb_executors))
 
+    # Generate a private key for each executor, using `get_fallback_key()` several times
+    # on the same host can cause concurrency problems. All the executors will have the same
+    # private key because of this, but this should not be an issue for integration tests.
+    settings.ETHEREUM_PRIVATE_KEY = HexBytes(generate_key()).hex()
+
     with ExitStack() as cm:
         _processes = [
             cm.enter_context(
@@ -117,11 +122,6 @@ def executor_server(mock_ccn: str) -> str:
 @pytest_asyncio.fixture
 def executor_servers(mock_ccn: str, request) -> Tuple[str]:
     assert mock_ccn, "The mock CCN server must be running"
-
-    # Generate a private key for each executor, using `get_fallback_key()` several times
-    # on the same host can cause concurrency problems. All the executors will have the same
-    # private key because of this, but this should not be an issue for integration tests.
-    os.environ["ALEPH_VRF_ETHEREUM_PRIVATE_KEY"] = HexBytes(generate_key()).hex()
 
     nb_executors = request.param
     with _executor_servers(nb_executors=nb_executors) as executor_urls:
