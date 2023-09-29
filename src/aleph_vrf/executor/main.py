@@ -64,7 +64,7 @@ async def authenticated_aleph_client() -> AuthenticatedAlephClient:
 async def index():
     return {
         "name": "vrf_generate_api",
-        "endpoints": ["/generate/{vrf_request}", "/publish/{message_hash}"],
+        "endpoints": ["/generate/{vrf_request_hash}", "/publish/{message_hash}"],
     }
 
 
