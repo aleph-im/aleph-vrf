@@ -1,4 +1,4 @@
-from typing import List, Optional, overload
+from typing import List
 from typing import TypeVar, Generic
 from uuid import uuid4
 
@@ -182,6 +182,10 @@ class PublishedVRFResponse(VRFResponse):
 
 
 M = TypeVar("M", bound=BaseModel)
+
+
+class APIError(BaseModel):
+    error: str
 
 
 class APIResponse(GenericModel, Generic[M]):

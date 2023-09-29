@@ -6,8 +6,6 @@ from aleph_vrf.settings import settings
 logger = logging.getLogger(__name__)
 
 logger.debug("import aleph_client")
-from aleph.sdk.chains.common import get_fallback_private_key
-from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.vm.app import AlephApp
 from aleph.sdk.vm.cache import VmCache
 
@@ -16,7 +14,7 @@ from fastapi import FastAPI
 
 logger.debug("local imports")
 from aleph_vrf.coordinator.vrf import generate_vrf
-from aleph_vrf.models import APIResponse, PublishedVRFResponse
+from aleph_vrf.models import APIResponse, PublishedVRFResponse, APIError
 
 logger.debug("imports done")
 
@@ -36,14 +34,19 @@ async def index():
 
 
 @app.post("/vrf")
-async def receive_vrf() -> APIResponse:
+async def receive_vrf() -> APIResponse[Union[PublishedVRFResponse, APIError]]:
+    """
+    Goes through the VRF random number generation process and returns a random number
+    along with details on how the number was generated.
+    """
+
     account = settings.aleph_account()
 
-    response: Union[PublishedVRFResponse, Dict[str, str]]
+    response: Union[PublishedVRFResponse, APIError]
 
     try:
         response = await generate_vrf(account)
     except Exception as err:
-        response = {"error": str(err)}
+        response = APIError(error=str(err))
 
     return APIResponse(data=response)

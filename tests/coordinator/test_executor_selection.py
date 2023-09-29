@@ -137,6 +137,9 @@ def fixture_nodes_aggregate() -> Dict[str, Any]:
 
 @pytest.mark.asyncio
 async def test_select_random_nodes(fixture_nodes_aggregate: Dict[str, Any], mocker):
+    """
+    Checks that the ExecuteOnAleph policy is able to select CRNs at random.
+    """
     network_fixture = mocker.patch(
         "aleph_vrf.coordinator.executor_selection._get_corechannel_aggregate",
         return_value=fixture_nodes_aggregate,
@@ -161,6 +164,10 @@ async def test_select_random_nodes(fixture_nodes_aggregate: Dict[str, Any], mock
 async def test_select_random_nodes_with_unauthorized(
     fixture_nodes_aggregate: Dict[str, Any], mocker
 ):
+    """
+    Checks that the blacklisting feature works during node selection.
+    """
+
     network_fixture = mocker.patch(
         "aleph_vrf.coordinator.executor_selection._get_corechannel_aggregate",
         return_value=fixture_nodes_aggregate,

@@ -53,3 +53,9 @@ MANIFEST
 venv/
 .conda*/
 .python-version
+
+# Volume files
+*.squashfs
+
+# Key files
+*.key

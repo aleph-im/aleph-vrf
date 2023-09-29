@@ -29,6 +29,10 @@ class ExecutorHttpError(VrfException):
 
 
 class ExecutorError(Exception):
+    """
+    An error occurred while communicating with an executor.
+    """
+
     def __init__(self, executor: Executor):
         self.executor = executor
 
@@ -69,6 +73,10 @@ class HashesDoNotMatch(VrfException):
 
 
 class HashValidationFailed(VrfException):
+    """
+    A random number does not match the SHA3 hash sent by the executor.
+    """
+
     def __init__(
         self,
         random_bytes: PublishedVRFRandomBytes,
@@ -88,6 +96,10 @@ class HashValidationFailed(VrfException):
 
 
 class NotEnoughExecutors(VrfException):
+    """
+    There are not enough executors available to satisfy the user requirements.
+    """
+
     def __init__(self, requested: int, available: int):
         self.requested = requested
         self.available = available
