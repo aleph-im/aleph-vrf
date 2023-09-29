@@ -22,7 +22,6 @@ from aleph_vrf.models import (
     PublishedVRFRandomNumberHash,
     PublishedVRFRandomNumber,
 )
-from aleph_vrf.types import RequestId
 from aleph_vrf.utils import xor_all, bytes_to_int, binary_to_bytes, verify
 
 

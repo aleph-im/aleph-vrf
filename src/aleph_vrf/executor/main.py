@@ -118,7 +118,7 @@ async def receive_generate(
     SAVED_GENERATED_BYTES[execution_id] = generated_bytes
     ANSWERED_REQUESTS.add(vrf_request.request_id)
 
-    response_hash = VRFRandomNumberHash(
+    random_number_hash = VRFRandomNumberHash(
         nb_bytes=vrf_request.nb_bytes,
         nonce=vrf_request.nonce,
         request_id=vrf_request.request_id,
@@ -129,20 +129,20 @@ async def receive_generate(
 
     ref = (
         f"vrf"
-        f"_{response_hash.request_id}"
-        f"_{response_hash.execution_id}"
+        f"_{random_number_hash.request_id}"
+        f"_{random_number_hash.execution_id}"
         f"_{GENERATE_MESSAGE_REF_PATH}"
     )
 
     message_hash = await publish_data(
-        aleph_client=aleph_client, data=response_hash, ref=ref
+        aleph_client=aleph_client, data=random_number_hash, ref=ref
     )
 
-    published_response_hash = PublishedVRFRandomNumberHash.from_vrf_response_hash(
-        vrf_response_hash=response_hash, message_hash=message_hash
+    published_random_number_hash = PublishedVRFRandomNumberHash.from_vrf_response_hash(
+        vrf_response_hash=random_number_hash, message_hash=message_hash
     )
 
-    return APIResponse(data=published_response_hash)
+    return APIResponse(data=published_random_number_hash)
 
 
 @app.post("/publish/{message_hash}")
@@ -173,7 +173,7 @@ async def receive_publish(
 
     random_bytes: bytes = SAVED_GENERATED_BYTES.pop(response_hash.execution_id)
 
-    response_random_number = VRFRandomNumber(
+    random_number = VRFRandomNumber(
         request_id=response_hash.request_id,
         execution_id=response_hash.execution_id,
         vrf_request=response_hash.vrf_request,
@@ -185,13 +185,13 @@ async def receive_publish(
     ref = f"vrf_{response_hash.request_id}_{response_hash.execution_id}"
 
     message_hash = await publish_data(
-        aleph_client=aleph_client, data=response_bytes, ref=ref
+        aleph_client=aleph_client, data=random_number, ref=ref
     )
-    published_random_bytes = PublishedVRFRandomNumber.from_vrf_random_number(
-        vrf_random_number=response_bytes, message_hash=message_hash
+    published_random_number = PublishedVRFRandomNumber.from_vrf_random_number(
+        vrf_random_number=random_number, message_hash=message_hash
     )
 
-    return APIResponse(data=published_random_bytes)
+    return APIResponse(data=published_random_number)
 
 
 async def publish_data(
