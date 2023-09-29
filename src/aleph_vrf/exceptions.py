@@ -1,4 +1,4 @@
-from aleph_vrf.models import Executor, PublishedVRFRandomBytes
+from aleph_vrf.models import Executor, PublishedVRFRandomNumber
 
 
 class VrfException(Exception):
@@ -79,18 +79,18 @@ class HashValidationFailed(VrfException):
 
     def __init__(
         self,
-        random_bytes: PublishedVRFRandomBytes,
+        random_number: PublishedVRFRandomNumber,
         random_number_hash: str,
         executor: Executor,
     ):
-        self.random_bytes = random_bytes
+        self.random_number = random_number
         self.random_number_hash = random_number_hash
         self.executor = executor
 
     def __str__(self):
         return (
             f"The random number published by {self.executor.api_url} "
-            f"(execution ID: {self.random_bytes.execution_id}) "
+            f"(execution ID: {self.random_number.execution_id}) "
             "does not match the hash."
         )
 

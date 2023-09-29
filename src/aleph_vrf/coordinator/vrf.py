@@ -26,11 +26,11 @@ from aleph_vrf.exceptions import (
     HashesDoNotMatch,
 )
 from aleph_vrf.models import (
-    CRNVRFResponse,
+    ExecutorVRFResponse,
     VRFRequest,
     VRFResponse,
-    PublishedVRFResponseHash,
-    PublishedVRFRandomBytes,
+    PublishedVRFRandomNumberHash,
+    PublishedVRFRandomNumber,
     Executor,
     PublishedVRFResponse,
 )
@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 M = TypeVar("M", bound=BaseModel)
 
 
-async def post_node_vrf(url: str, model: Type[M]) -> M:
+async def post_executor_api_request(url: str, model: Type[M]) -> M:
     async with aiohttp.ClientSession() as session:
         async with session.post(url, timeout=60) as resp:
             if resp.status != 200:
@@ -99,27 +99,26 @@ async def _generate_vrf(
 
     logger.debug(f"Generated VRF request with item_hash {request_item_hash}")
 
-    vrf_generated_result = await send_generate_requests(
+    vrf_generation_results = await send_generate_requests(
         executors=executors,
         request_item_hash=request_item_hash,
-        request_id=vrf_request.request_id,
     )
 
     logger.debug(
-        f"Received VRF generated requests from {len(vrf_generated_result)} executors"
+        f"Received VRF generated requests from {len(vrf_generation_results)} executors"
     )
 
-    vrf_publish_result = await send_publish_requests(vrf_generated_result)
+    vrf_publication_results = await send_publish_requests(vrf_generation_results)
 
     logger.debug(
-        f"Received VRF publish requests from {len(vrf_generated_result)} executors"
+        f"Received VRF publish requests from {len(vrf_generation_results)} executors"
     )
 
     vrf_response = generate_final_vrf(
         nb_executors,
         nonce,
-        vrf_generated_result,
-        vrf_publish_result,
+        vrf_generation_results,
+        vrf_publication_results,
         vrf_request,
     )
 
@@ -163,64 +162,67 @@ async def generate_vrf(
 async def send_generate_requests(
     executors: List[Executor],
     request_item_hash: ItemHash,
-    request_id: RequestId,
-) -> Dict[Executor, PublishedVRFResponseHash]:
+) -> Dict[Executor, PublishedVRFRandomNumberHash]:
     generate_tasks = []
     for executor in executors:
         url = f"{executor.api_url}/{VRF_FUNCTION_GENERATE_PATH}/{request_item_hash}"
         generate_tasks.append(
-            asyncio.create_task(post_node_vrf(url, PublishedVRFResponseHash))
+            asyncio.create_task(
+                post_executor_api_request(url, PublishedVRFRandomNumberHash)
+            )
         )
 
     vrf_generated_responses = await asyncio.gather(
         *generate_tasks, return_exceptions=True
     )
-    generate_results = dict(zip(executors, vrf_generated_responses))
+    generation_results = dict(zip(executors, vrf_generated_responses))
 
-    for executor, result in generate_results.items():
+    for executor, result in generation_results.items():
         if isinstance(result, Exception):
             raise RandomNumberGenerationFailed(executor=executor) from result
 
-    return generate_results
+    return generation_results
 
 
 async def send_publish_requests(
-    vrf_generated_result: Dict[Executor, PublishedVRFResponseHash],
-) -> Dict[Executor, PublishedVRFRandomBytes]:
+    vrf_generation_results: Dict[Executor, PublishedVRFRandomNumberHash],
+) -> Dict[Executor, PublishedVRFRandomNumber]:
     publish_tasks = []
     executors: List[Executor] = []
 
-    for executor, vrf_generated_response in vrf_generated_result.items():
+    for executor, vrf_random_number_hash in vrf_generation_results.items():
         executors.append(executor)
 
-        node_message_hash = vrf_generated_response.message_hash
-        url = f"{executor.api_url}/{VRF_FUNCTION_PUBLISH_PATH}/{node_message_hash}"
+        executor_message_hash = vrf_random_number_hash.message_hash
+        url = f"{executor.api_url}/{VRF_FUNCTION_PUBLISH_PATH}/{executor_message_hash}"
         publish_tasks.append(
-            asyncio.create_task(post_node_vrf(url, PublishedVRFRandomBytes))
+            asyncio.create_task(
+                post_executor_api_request(url, PublishedVRFRandomNumber)
+            )
         )
 
     vrf_publish_responses = await asyncio.gather(*publish_tasks, return_exceptions=True)
-    publish_results = dict(zip(executors, vrf_publish_responses))
+    publication_results = dict(zip(executors, vrf_publish_responses))
 
-    for executor, result in publish_results.items():
+    for executor, result in publication_results.items():
         if isinstance(result, Exception):
             raise RandomNumberPublicationFailed(executor=executor) from result
 
-    return publish_results
+    return publication_results
 
 
 def generate_final_vrf(
     nb_executors: int,
     nonce: Nonce,
-    vrf_generated_result: Dict[Executor, PublishedVRFResponseHash],
-    vrf_publish_result: Dict[Executor, PublishedVRFRandomBytes],
+    vrf_generation_results: Dict[Executor, PublishedVRFRandomNumberHash],
+    vrf_publication_results: Dict[Executor, PublishedVRFRandomNumber],
     vrf_request: VRFRequest,
 ) -> VRFResponse:
-    nodes_responses = []
+    executor_responses = []
     random_numbers_list = []
-    for executor, vrf_publish_response in vrf_publish_result.items():
-        if (generation_hash := vrf_generated_result[executor].random_bytes_hash) != (
-            publication_hash := vrf_publish_response.random_bytes_hash
+    for executor, vrf_random_number in vrf_publication_results.items():
+        if (generation_hash := vrf_generation_results[executor].random_number_hash) != (
+            publication_hash := vrf_random_number.random_number_hash
         ):
             raise HashesDoNotMatch(
                 executor=executor,
@@ -229,34 +231,34 @@ def generate_final_vrf(
             )
 
         verified = verify(
-            binary_to_bytes(vrf_publish_response.random_bytes),
+            binary_to_bytes(vrf_random_number.random_bytes),
             nonce,
             generation_hash,
         )
         if not verified:
             raise HashValidationFailed(
-                random_bytes=vrf_publish_response,
+                random_number=vrf_random_number,
                 random_number_hash=generation_hash,
                 executor=executor,
             )
 
         random_numbers_list.append(
-            int_to_bytes(int(vrf_publish_response.random_number), n=vrf_request.nb_bytes)
+            int_to_bytes(int(vrf_random_number.random_number), n=vrf_request.nb_bytes)
         )
 
-        node_response = CRNVRFResponse(
+        executor_response = ExecutorVRFResponse(
             url=executor.node.address,
-            execution_id=vrf_publish_response.execution_id,
-            random_number=str(vrf_publish_response.random_number),
-            random_bytes=vrf_publish_response.random_bytes,
-            random_bytes_hash=vrf_generated_result[executor].random_bytes_hash,
-            generation_message_hash=vrf_generated_result[executor].message_hash,
-            publish_message_hash=vrf_publish_response.message_hash,
+            execution_id=vrf_random_number.execution_id,
+            random_number=str(vrf_random_number.random_number),
+            random_bytes=vrf_random_number.random_bytes,
+            random_number_hash=vrf_generation_results[executor].random_number_hash,
+            generation_message_hash=vrf_generation_results[executor].message_hash,
+            publication_message_hash=vrf_random_number.message_hash,
         )
-        nodes_responses.append(node_response)
+        executor_responses.append(executor_response)
 
-    final_random_nb_bytes = xor_all(random_numbers_list)
-    final_random_number = bytes_to_int(final_random_nb_bytes)
+    final_random_number_bytes = xor_all(random_numbers_list)
+    final_random_number = bytes_to_int(final_random_number_bytes)
 
     return VRFResponse(
         nb_bytes=vrf_request.nb_bytes,
@@ -264,7 +266,7 @@ def generate_final_vrf(
         nonce=nonce,
         vrf_function=vrf_request.vrf_function,
         request_id=vrf_request.request_id,
-        nodes=nodes_responses,
+        executors=executor_responses,
         random_number=str(final_random_number),
     )
 
