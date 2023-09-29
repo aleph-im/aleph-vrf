@@ -173,7 +173,7 @@ async def receive_publish(
 
     random_bytes: bytes = SAVED_GENERATED_BYTES.pop(response_hash.execution_id)
 
-    response_bytes = VRFRandomNumber(
+    response_random_number = VRFRandomNumber(
         request_id=response_hash.request_id,
         execution_id=response_hash.execution_id,
         vrf_request=response_hash.vrf_request,
