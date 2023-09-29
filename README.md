@@ -36,7 +36,7 @@ We provide a script to deploy the VM functions.
 Just run the following command to package the application and upload it to the aleph.im network.
 
 ```
-python3 deployment/deploy_vms.py
+python3 deployment/deploy_vrf_vms.py
 ```
 
 If the deployment succeeds, the script will display links to the VMs on the aleph.im network. Example:
@@ -52,7 +52,7 @@ The coordinator can also be used directly from Python code.
 First, deploy the executors using the deployment script, without the coordinator VM:
 
 ```
-python3 deployment/deploy_vms.py --no-coordinator
+python3 deployment/deploy_vrf_vms.py --no-coordinator
 ```
 
 This will deploy an executor VM on the network and give you its ID.
@@ -109,7 +109,7 @@ pytest -v .
 
 ### Create a new release
 
-1. Deploy the VMs: `python3 deployment/deploy_vms.py`
+1. Deploy the VMs: `python3 deployment/deploy_vrf_vms.py`
 2. Update the executor VM hash in the settings (Settings.FUNCTION) and create a Pull Request
 3. Merge the Pull Request and create a new release on Github
 4. Build and upload the package on PyPI: `python3 -m build && twine upload dist/*`

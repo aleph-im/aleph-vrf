@@ -174,7 +174,7 @@ async def main(args: argparse.Namespace):
 
 def parse_args(args) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="vm_supervisor", description="Aleph.im VM Supervisor"
+        prog="deploy_vrf_vms", description="Deploys the VRF VMs on the aleph.im network."
     )
     parser.add_argument(
         "--no-coordinator",
