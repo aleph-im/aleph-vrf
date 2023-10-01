@@ -24,8 +24,8 @@ from fastapi import FastAPI, Depends
 
 from aleph_vrf.models import (
     APIResponse,
-    PublishedVRFResponseHash,
-    PublishedVRFRandomBytes,
+    PublishedVRFRandomNumberHash,
+    PublishedVRFRandomNumber,
 )
 from aleph_vrf.utils import bytes_to_binary
 
@@ -34,31 +34,31 @@ http_app = FastAPI()
 app = AlephApp(http_app=http_app)
 
 
-@app.post("/generate/{vrf_request}")
+@app.post("/generate/{vrf_request_hash}")
 async def receive_generate(
-    vrf_request: ItemHash,
+    vrf_request_hash: ItemHash,
     aleph_client: Annotated[
         AuthenticatedAlephClient, Depends(authenticated_aleph_client)
     ],
-) -> APIResponse[PublishedVRFResponseHash]:
+) -> APIResponse[PublishedVRFRandomNumberHash]:
     from aleph_vrf.executor.main import receive_generate as real_receive_generate
 
     return await real_receive_generate(
-        vrf_request=vrf_request, aleph_client=aleph_client
+        vrf_request_hash=vrf_request_hash, aleph_client=aleph_client
     )
 
 
-@app.post("/publish/{hash_message}")
+@app.post("/publish/{message_hash}")
 async def receive_publish(
-    hash_message: ItemHash,
+    message_hash: ItemHash,
     aleph_client: Annotated[
         AuthenticatedAlephClient, Depends(authenticated_aleph_client)
     ],
-) -> APIResponse[PublishedVRFRandomBytes]:
+) -> APIResponse[PublishedVRFRandomNumber]:
     from aleph_vrf.executor.main import receive_publish as real_receive_publish
 
     api_response = await real_receive_publish(
-        hash_message=hash_message, aleph_client=aleph_client
+        message_hash=message_hash, aleph_client=aleph_client
     )
     # Replace the generated random number with a hardcoded value
     random_number = 123456789

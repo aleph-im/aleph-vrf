@@ -7,18 +7,21 @@ from aleph.sdk.chains.ethereum import ETHAccount
 from aleph_message.models import PostMessage, ItemHash
 
 from aleph_vrf.coordinator.executor_selection import UsePredeterminedExecutors
-from aleph_vrf.coordinator.vrf import generate_vrf, post_node_vrf
+from aleph_vrf.coordinator.vrf import generate_vrf, post_executor_api_request
 from aleph_vrf.coordinator.vrf import send_generate_requests
-from aleph_vrf.exceptions import RandomNumberPublicationFailed, HashValidationFailed, RandomNumberGenerationFailed
+from aleph_vrf.exceptions import (
+    RandomNumberPublicationFailed,
+    HashValidationFailed,
+    RandomNumberGenerationFailed,
+)
 from aleph_vrf.models import (
     Executor,
     Node,
     VRFResponse,
     PublishedVRFResponse,
-    PublishedVRFResponseHash,
-    PublishedVRFRandomBytes,
+    PublishedVRFRandomNumberHash,
+    PublishedVRFRandomNumber,
 )
-from aleph_vrf.types import RequestId
 from aleph_vrf.utils import xor_all, bytes_to_int, binary_to_bytes, verify
 
 
@@ -38,12 +41,12 @@ def assert_vrf_response_equal(
     assert vrf_response.request_id == expected_vrf_response.request_id
     assert vrf_response.random_number == expected_vrf_response.random_number
 
-    assert len(vrf_response.nodes) == len(expected_vrf_response.nodes)
+    assert len(vrf_response.executors) == len(expected_vrf_response.executors)
     expected_nodes_by_execution_id = {
-        node.execution_id: node for node in expected_vrf_response.nodes
+        node.execution_id: node for node in expected_vrf_response.executors
     }
 
-    for executor_response in vrf_response.nodes:
+    for executor_response in vrf_response.executors:
         expected_executor_response = expected_nodes_by_execution_id[
             executor_response.execution_id
         ]
@@ -53,16 +56,16 @@ def assert_vrf_response_equal(
             executor_response.random_number == expected_executor_response.random_number
         )
         assert (
-            executor_response.random_bytes_hash
-            == expected_executor_response.random_bytes_hash
+            executor_response.random_number_hash
+            == expected_executor_response.random_number_hash
         )
         assert (
             executor_response.generation_message_hash
             == expected_executor_response.generation_message_hash
         )
         assert (
-            executor_response.publish_message_hash
-            == expected_executor_response.publish_message_hash
+            executor_response.publication_message_hash
+            == expected_executor_response.publication_message_hash
         )
 
 
@@ -107,20 +110,20 @@ async def test_normal_flow(
         executor_selection_policy=UsePredeterminedExecutors(executors),
     )
     assert vrf_response.nb_executors == nb_executors
-    assert len(vrf_response.nodes) == nb_executors
+    assert len(vrf_response.executors) == nb_executors
     assert vrf_response.nb_bytes == nb_bytes
 
-    for executor_response in vrf_response.nodes:
+    for executor_response in vrf_response.executors:
         assert verify(
             random_bytes=binary_to_bytes(executor_response.random_bytes),
             nonce=vrf_response.nonce,
-            random_hash=executor_response.random_bytes_hash,
+            random_hash=executor_response.random_number_hash,
         )
 
     # Check that we can rebuild the random number using the executor responses
     random_bytes = [
         binary_to_bytes(executor_response.random_bytes)
-        for executor_response in vrf_response.nodes
+        for executor_response in vrf_response.executors
     ]
     random_number_bytes = xor_all(random_bytes)
     random_number = bytes_to_int(random_number_bytes)
@@ -189,16 +192,15 @@ async def test_malicious_executor(
 async def send_generate_requests_and_call_publish(
     executors: List[Executor],
     request_item_hash: ItemHash,
-    request_id: RequestId,
-) -> Dict[Executor, PublishedVRFResponseHash]:
+) -> Dict[Executor, PublishedVRFRandomNumberHash]:
     generate_response = await send_generate_requests(
-        executors=executors, request_item_hash=request_item_hash, request_id=request_id
+        executors=executors, request_item_hash=request_item_hash
     )
 
     for executor, response in generate_response.items():
-        _random_number = await post_node_vrf(
+        _random_number = await post_executor_api_request(
             f"{executor.api_url}/publish/{response.message_hash}",
-            PublishedVRFRandomBytes,
+            PublishedVRFRandomNumber,
         )
         # We're only interested in one response for this test
         break
