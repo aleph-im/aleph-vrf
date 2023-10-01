@@ -15,9 +15,12 @@ def xor_all(x: List[bytes]) -> bytes:
     return result
 
 
-def int_to_bytes(x: int) -> bytes:
-    """Converts an integer to bytes."""
-    return x.to_bytes((x.bit_length() + 7) // 8, "big")
+def int_to_bytes(x: int, n: int = 0) -> bytes:
+    """
+    Converts an integer to bytes.
+    If `n` is specified, pads the number to reach n bytes.
+    """
+    return x.to_bytes(max((x.bit_length() + 7) // 8, n), "big")
 
 
 def bytes_to_int(x: bytes) -> int:
@@ -30,9 +33,9 @@ def bytes_to_binary(x: bytes) -> str:
     return "".join(format(b, "08b") for b in x)
 
 
-def binary_to_bytes(s: str):
+def binary_to_bytes(s: str, n: int = 0):
     """Converts binary string to bytes."""
-    return int(s, 2).to_bytes((len(s) + 7) // 8, byteorder="big")
+    return int(s, 2).to_bytes(max((len(s) + 7) // 8, n), byteorder="big")
 
 
 def generate_nonce() -> Nonce:

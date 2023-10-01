@@ -241,7 +241,7 @@ def generate_final_vrf(
             )
 
         random_numbers_list.append(
-            int_to_bytes(int(vrf_publish_response.random_number))
+            int_to_bytes(int(vrf_publish_response.random_number), n=vrf_request.nb_bytes)
         )
 
         node_response = CRNVRFResponse(
