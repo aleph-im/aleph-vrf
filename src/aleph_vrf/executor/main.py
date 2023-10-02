@@ -55,7 +55,10 @@ app = AlephApp(http_app=http_app)
 async def authenticated_aleph_client() -> AuthenticatedAlephClient:
     account = settings.aleph_account()
     async with AuthenticatedAlephClient(
-        account=account, api_server=settings.API_HOST
+        account=account,
+        api_server=settings.API_HOST,
+        # Avoid going through the VM connector on aleph.im CRNs
+        allow_unix_sockets=False,
     ) as client:
         yield client
 
@@ -112,9 +115,7 @@ async def receive_generate(
             detail=f"A random number has already been generated for request {vrf_request_hash}",
         )
 
-    generated_bytes, hashed_bytes = generate(
-        vrf_request.nb_bytes, vrf_request.nonce
-    )
+    generated_bytes, hashed_bytes = generate(vrf_request.nb_bytes, vrf_request.nonce)
     SAVED_GENERATED_BYTES[execution_id] = generated_bytes
     ANSWERED_REQUESTS.add(vrf_request.request_id)
 
