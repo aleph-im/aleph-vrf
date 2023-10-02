@@ -19,7 +19,7 @@ class Settings(BaseSettings):
         default="corechannel", description="Key for the `corechannel` aggregate."
     )
     FUNCTION: str = Field(
-        default="c52d6586837b0992d3043d7d0dbe8f49b180911e8c3a87c732f8dbcef2c254ab",
+        default="f6a734dbc98659f030e1cd9c12d8ffb769deac55d42d5db5285fba099755c779",
         description="VRF function to use.",
     )
     NB_EXECUTORS: int = Field(default=32, description="Number of executors to use.")

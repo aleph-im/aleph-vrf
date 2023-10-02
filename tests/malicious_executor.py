@@ -27,8 +27,6 @@ from aleph_vrf.models import (
     PublishedVRFRandomNumberHash,
     PublishedVRFRandomNumber,
 )
-from aleph_vrf.utils import bytes_to_binary
-
 
 http_app = FastAPI()
 app = AlephApp(http_app=http_app)
@@ -61,9 +59,6 @@ async def receive_publish(
         message_hash=message_hash, aleph_client=aleph_client
     )
     # Replace the generated random number with a hardcoded value
-    random_number = 123456789
-    api_response.data.random_number = str(random_number)
-    api_response.data.random_bytes = bytes_to_binary(
-        random_number.to_bytes(length=32, byteorder="big")
-    )
+    random_number = int(123456789).to_bytes(length=32, byteorder="big")
+    api_response.data.random_number = f"0x{random_number.hex()}"
     return api_response
