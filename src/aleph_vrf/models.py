@@ -110,9 +110,8 @@ class VRFRandomNumber(BaseModel):
     request_id: RequestId
     execution_id: ExecutionId
     vrf_request: ItemHash
-    random_bytes: str
-    random_number_hash: str
     random_number: str
+    random_number_hash: str
 
 
 class PublishedVRFRandomNumber(VRFRandomNumber):
@@ -126,9 +125,8 @@ class PublishedVRFRandomNumber(VRFRandomNumber):
             request_id=vrf_random_number.request_id,
             execution_id=vrf_random_number.execution_id,
             vrf_request=vrf_random_number.vrf_request,
-            random_bytes=vrf_random_number.random_bytes,
-            random_number_hash=vrf_random_number.random_number_hash,
             random_number=vrf_random_number.random_number,
+            random_number_hash=vrf_random_number.random_number_hash,
             message_hash=message_hash,
         )
 
@@ -137,7 +135,6 @@ class ExecutorVRFResponse(BaseModel):
     url: str
     execution_id: ExecutionId
     random_number: str
-    random_bytes: str
     random_number_hash: str
     generation_message_hash: ItemHash
     publication_message_hash: ItemHash

@@ -14,6 +14,7 @@ from aleph_message.models import (
     ItemHash,
     PostMessage,
 )
+from hexbytes import HexBytes
 
 from aleph_vrf.models import (
     VRFRequest,
@@ -24,7 +25,7 @@ from aleph_vrf.models import (
     PublishedVRFRandomNumber,
 )
 from aleph_vrf.types import Nonce, RequestId
-from aleph_vrf.utils import binary_to_bytes, verify
+from aleph_vrf.utils import verify
 
 
 @pytest.mark.asyncio
@@ -121,8 +122,13 @@ def assert_random_number_matches_request(
     assert random_number.vrf_request == random_number_hash.vrf_request
     assert random_number.random_number_hash == random_number_hash.random_number_hash
 
+    assert random_number.random_number.startswith("0x")
+    assert (
+        len(random_number.random_number) == vrf_request.nb_bytes * 2 + 2
+    )  # Account for the "0x" prefix
+
     assert verify(
-        random_bytes=binary_to_bytes(random_number.random_bytes),
+        random_number=HexBytes(random_number.random_number),
         nonce=vrf_request.nonce,
         random_hash=random_number_hash.random_number_hash,
     )
@@ -167,9 +173,8 @@ def assert_vrf_random_number_equal(
     assert random_number.request_id == expected_random_number.request_id
     assert random_number.execution_id == expected_random_number.execution_id
     assert random_number.vrf_request == expected_random_number.vrf_request
-    assert random_number.random_bytes == expected_random_number.random_bytes
-    assert random_number.random_number_hash == expected_random_number.random_number_hash
     assert random_number.random_number == expected_random_number.random_number
+    assert random_number.random_number_hash == expected_random_number.random_number_hash
     # We do not check message_hash as it can be None in the aleph message but set in the API response
 
 

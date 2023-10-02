@@ -38,7 +38,7 @@ from aleph_vrf.models import (
     PublishedVRFRandomNumberHash,
     PublishedVRFRandomNumber,
 )
-from aleph_vrf.utils import bytes_to_binary, bytes_to_int, generate
+from aleph_vrf.utils import generate
 
 logger.debug("imports done")
 
@@ -46,7 +46,7 @@ GENERATE_MESSAGE_REF_PATH = "hash"
 
 # TODO: Use another method to save the data
 ANSWERED_REQUESTS: Set[RequestId] = set()
-SAVED_GENERATED_BYTES: Dict[ExecutionId, bytes] = {}
+GENERATED_NUMBERS: Dict[ExecutionId, bytes] = {}
 
 http_app = FastAPI()
 app = AlephApp(http_app=http_app)
@@ -103,7 +103,7 @@ async def receive_generate(
     :param aleph_client: Authenticated aleph.im client.
     """
 
-    global SAVED_GENERATED_BYTES, ANSWERED_REQUESTS
+    global GENERATED_NUMBERS, ANSWERED_REQUESTS
 
     message = await _get_message(client=aleph_client, item_hash=vrf_request_hash)
     vrf_request = get_vrf_request_from_message(message)
@@ -115,32 +115,32 @@ async def receive_generate(
             detail=f"A random number has already been generated for request {vrf_request_hash}",
         )
 
-    generated_bytes, hashed_bytes = generate(vrf_request.nb_bytes, vrf_request.nonce)
-    SAVED_GENERATED_BYTES[execution_id] = generated_bytes
+    random_number, random_number_hash = generate(vrf_request.nb_bytes, vrf_request.nonce)
+    GENERATED_NUMBERS[execution_id] = random_number
     ANSWERED_REQUESTS.add(vrf_request.request_id)
 
-    random_number_hash = VRFRandomNumberHash(
+    vrf_random_number_hash = VRFRandomNumberHash(
         nb_bytes=vrf_request.nb_bytes,
         nonce=vrf_request.nonce,
         request_id=vrf_request.request_id,
         execution_id=execution_id,
         vrf_request=vrf_request_hash,
-        random_number_hash=hashed_bytes,
+        random_number_hash=random_number_hash,
     )
 
     ref = (
         f"vrf"
-        f"_{random_number_hash.request_id}"
-        f"_{random_number_hash.execution_id}"
+        f"_{vrf_random_number_hash.request_id}"
+        f"_{vrf_random_number_hash.execution_id}"
         f"_{GENERATE_MESSAGE_REF_PATH}"
     )
 
     message_hash = await publish_data(
-        aleph_client=aleph_client, data=random_number_hash, ref=ref
+        aleph_client=aleph_client, data=vrf_random_number_hash, ref=ref
     )
 
     published_random_number_hash = PublishedVRFRandomNumberHash.from_vrf_response_hash(
-        vrf_response_hash=random_number_hash, message_hash=message_hash
+        vrf_response_hash=vrf_random_number_hash, message_hash=message_hash
     )
 
     return APIResponse(data=published_random_number_hash)
@@ -162,34 +162,33 @@ async def receive_publish(
     :param aleph_client: Authenticated aleph.im client.
     """
 
-    global SAVED_GENERATED_BYTES
+    global GENERATED_NUMBERS
 
     message = await _get_message(client=aleph_client, item_hash=message_hash)
     response_hash = get_random_number_hash_from_message(message)
 
-    if response_hash.execution_id not in SAVED_GENERATED_BYTES:
+    if response_hash.execution_id not in GENERATED_NUMBERS:
         raise fastapi.HTTPException(
             status_code=404, detail="The random number has already been published"
         )
 
-    random_bytes: bytes = SAVED_GENERATED_BYTES.pop(response_hash.execution_id)
+    random_number: bytes = GENERATED_NUMBERS.pop(response_hash.execution_id)
 
-    random_number = VRFRandomNumber(
+    vrf_random_number = VRFRandomNumber(
         request_id=response_hash.request_id,
         execution_id=response_hash.execution_id,
         vrf_request=response_hash.vrf_request,
-        random_bytes=bytes_to_binary(random_bytes),
+        random_number=f"0x{random_number.hex()}",
         random_number_hash=response_hash.random_number_hash,
-        random_number=str(bytes_to_int(random_bytes)),
     )
 
     ref = f"vrf_{response_hash.request_id}_{response_hash.execution_id}"
 
     message_hash = await publish_data(
-        aleph_client=aleph_client, data=random_number, ref=ref
+        aleph_client=aleph_client, data=vrf_random_number, ref=ref
     )
     published_random_number = PublishedVRFRandomNumber.from_vrf_random_number(
-        vrf_random_number=random_number, message_hash=message_hash
+        vrf_random_number=vrf_random_number, message_hash=message_hash
     )
 
     return APIResponse(data=published_random_number)

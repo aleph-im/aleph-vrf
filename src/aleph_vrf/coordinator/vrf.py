@@ -10,6 +10,7 @@ from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client import AuthenticatedAlephClient
 from aleph_message.models import ItemHash
 from aleph_message.status import MessageStatus
+from hexbytes import HexBytes
 from pydantic import BaseModel
 from pydantic.json import pydantic_encoder
 
@@ -37,10 +38,7 @@ from aleph_vrf.models import (
 from aleph_vrf.settings import settings
 from aleph_vrf.types import RequestId, Nonce
 from aleph_vrf.utils import (
-    binary_to_bytes,
-    bytes_to_int,
     generate_nonce,
-    int_to_bytes,
     verify,
     xor_all,
 )
@@ -233,8 +231,9 @@ def generate_final_vrf(
                 publication_hash=publication_hash,
             )
 
+        random_number = HexBytes(vrf_random_number.random_number)
         verified = verify(
-            binary_to_bytes(vrf_random_number.random_bytes),
+            random_number,
             nonce,
             generation_hash,
         )
@@ -245,23 +244,19 @@ def generate_final_vrf(
                 executor=executor,
             )
 
-        random_numbers_list.append(
-            int_to_bytes(int(vrf_random_number.random_number), n=vrf_request.nb_bytes)
-        )
+        random_numbers_list.append(random_number)
 
         executor_response = ExecutorVRFResponse(
             url=executor.node.address,
             execution_id=vrf_random_number.execution_id,
-            random_number=str(vrf_random_number.random_number),
-            random_bytes=vrf_random_number.random_bytes,
+            random_number=vrf_random_number.random_number,
             random_number_hash=vrf_generation_results[executor].random_number_hash,
             generation_message_hash=vrf_generation_results[executor].message_hash,
             publication_message_hash=vrf_random_number.message_hash,
         )
         executor_responses.append(executor_response)
 
-    final_random_number_bytes = xor_all(random_numbers_list)
-    final_random_number = bytes_to_int(final_random_number_bytes)
+    final_random_number = xor_all(random_numbers_list)
 
     return VRFResponse(
         nb_bytes=vrf_request.nb_bytes,
@@ -270,7 +265,7 @@ def generate_final_vrf(
         vrf_function=vrf_request.vrf_function,
         request_id=vrf_request.request_id,
         executors=executor_responses,
-        random_number=str(final_random_number),
+        random_number=f"0x{final_random_number.hex()}",
     )
 
 

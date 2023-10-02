@@ -5,6 +5,7 @@ from aleph.sdk import AlephClient
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph_message.models import PostMessage, ItemHash
+from hexbytes import HexBytes
 
 from aleph_vrf.coordinator.executor_selection import UsePredeterminedExecutors
 from aleph_vrf.coordinator.vrf import generate_vrf, post_executor_api_request
@@ -22,7 +23,7 @@ from aleph_vrf.models import (
     PublishedVRFRandomNumberHash,
     PublishedVRFRandomNumber,
 )
-from aleph_vrf.utils import xor_all, bytes_to_int, binary_to_bytes, verify
+from aleph_vrf.utils import xor_all, verify
 
 
 @pytest.fixture
@@ -112,22 +113,25 @@ async def test_normal_flow(
     assert vrf_response.nb_executors == nb_executors
     assert len(vrf_response.executors) == nb_executors
     assert vrf_response.nb_bytes == nb_bytes
+    assert vrf_response.random_number.startswith("0x")
+    assert (
+        len(vrf_response.random_number) == nb_bytes * 2 + 2
+    )  # Account for the "0x" prefix
 
     for executor_response in vrf_response.executors:
         assert verify(
-            random_bytes=binary_to_bytes(executor_response.random_bytes),
+            random_number=HexBytes(executor_response.random_number),
             nonce=vrf_response.nonce,
             random_hash=executor_response.random_number_hash,
         )
 
     # Check that we can rebuild the random number using the executor responses
-    random_bytes = [
-        binary_to_bytes(executor_response.random_bytes)
+    random_numbers = [
+        HexBytes(executor_response.random_number)
         for executor_response in vrf_response.executors
     ]
-    random_number_bytes = xor_all(random_bytes)
-    random_number = bytes_to_int(random_number_bytes)
-    assert int(vrf_response.random_number) == random_number
+    final_random_number = xor_all(random_numbers)
+    assert HexBytes(vrf_response.random_number) == final_random_number
 
     # Check that VRF response posted on the network matches the API response
     await assert_aleph_message_matches_vrf_response(
