@@ -15,6 +15,7 @@ from aleph_message.models.execution.volume import ImmutableVolume
 from aleph_message.status import MessageStatus
 
 from aleph_vrf.settings import settings
+from prepare_vrf_vms import prepare_executor_nodes, create_unauthorized_file
 
 DEBIAN12_RUNTIME = ItemHash(
     "ed2c37ae857edaea1d36a43fdd0fb9fdb7a2c9394957e6b53d9c94bf67f32ac3"
@@ -30,10 +31,10 @@ def mksquashfs(path: Path, destination: Path) -> None:
 
 
 async def upload_dir_as_volume(
-    aleph_client: AuthenticatedAlephClient,
-    dir_path: Path,
-    channel: str,
-    volume_path: Optional[Path] = None,
+        aleph_client: AuthenticatedAlephClient,
+        dir_path: Path,
+        channel: str,
+        volume_path: Optional[Path] = None,
 ):
     volume_path = volume_path or Path(f"{dir_path}.squashfs")
     if volume_path.exists():
@@ -52,12 +53,13 @@ async def upload_dir_as_volume(
 
 
 async def deploy_python_program(
-    aleph_client: AuthenticatedAlephClient,
-    code_volume_hash: ItemHash,
-    entrypoint: str,
-    venv_hash: ItemHash,
-    channel: str,
-    environment: Optional[Dict[str, str]] = None,
+        aleph_client: AuthenticatedAlephClient,
+        code_volume_hash: ItemHash,
+        entrypoint: str,
+        venv_hash: ItemHash,
+        channel: str,
+        environment: Optional[Dict[str, str]] = None,
+        timeout_seconds: Optional[int] = None,
 ) -> ProgramMessage:
     program_message, status = await aleph_client.create_program(
         program_ref=code_volume_hash,
@@ -75,6 +77,7 @@ async def deploy_python_program(
         sync=True,
         environment_variables=environment,
         channel=channel,
+        timeout_seconds=timeout_seconds,
     )
 
     if status == MessageStatus.REJECTED:
@@ -91,18 +94,20 @@ deploy_executor_vm = partial(
 deploy_coordinator_vm = partial(
     deploy_python_program,
     entrypoint="aleph_vrf.coordinator.main:app",
+    timeout_seconds=60,
 )
 
 
 async def deploy_vrf(
-    source_dir: Path, venv_dir: Path, deploy_coordinator: bool = True
+        source_dir: Path, venv_dir: Path, deploy_coordinator: bool = True, prepare_nodes: bool = False
 ) -> Tuple[ProgramMessage, Optional[ProgramMessage]]:
     private_key = get_fallback_private_key()
     account = ETHAccount(private_key)
     channel = "vrf-tests"
+    unauthorized_list = False
 
     async with AuthenticatedAlephClient(
-        account=account, api_server=settings.API_HOST
+            account=account, api_server=settings.API_HOST
     ) as aleph_client:
         # Upload the code and venv volumes
         print("Uploading code volume...")
@@ -130,7 +135,24 @@ async def deploy_vrf(
             environment={"PYTHONPATH": "/opt/packages"},
         )
 
+        if prepare_nodes:
+            failed_nodes, _ = await prepare_executor_nodes(executor_program_message.item_hash)
+
+            if len(failed_nodes) > 0:
+                create_unauthorized_file(failed_nodes)
+                unauthorized_list = True
+
         if deploy_coordinator:
+            if unauthorized_list:
+                # Upload the code volume for coordinator with unauthorized list
+                print("Uploading coordinator code volume...")
+                code_volume_hash = await upload_dir_as_volume(
+                    aleph_client=aleph_client,
+                    dir_path=source_dir,
+                    channel=channel,
+                    volume_path=Path("aleph-vrf-coordinator.squashfs"),
+                )
+
             print("Creating coordinator VM...")
             coordinator_program_message = await deploy_coordinator_vm(
                 aleph_client=aleph_client,
@@ -150,6 +172,7 @@ async def deploy_vrf(
 
 async def main(args: argparse.Namespace):
     deploy_coordinator = args.deploy_coordinator
+    prepare_nodes = args.prepare_nodes
     root_dir = Path(__file__).parent.parent
 
     with TemporaryDirectory() as venv_dir_str:
@@ -160,6 +183,7 @@ async def main(args: argparse.Namespace):
             source_dir=root_dir / "src",
             venv_dir=venv_dir,
             deploy_coordinator=deploy_coordinator,
+            prepare_nodes=prepare_nodes,
         )
 
     print("Aleph.im VRF VMs were successfully deployed.")
@@ -182,6 +206,13 @@ def parse_args(args) -> argparse.Namespace:
         action="store_false",
         default=True,
         help="Deploy the coordinator as an aleph.im VM function",
+    )
+    parser.add_argument(
+        "--prepare-nodes",
+        dest="prepare_nodes",
+        action="store_true",
+        default=False,
+        help="Preload executor VMs on Aleph CRNs",
     )
     return parser.parse_args(args)
 

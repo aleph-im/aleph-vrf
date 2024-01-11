@@ -119,6 +119,22 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
             raise NotEnoughExecutors(requested=nb_executors, available=len(executors))
         return random.sample(executors, nb_executors)
 
+    async def get_candidate_executors(self) -> List[Executor]:
+        compute_nodes = self._list_compute_nodes()
+        blacklisted_nodes = self._get_unauthorized_nodes()
+        whitelisted_nodes = (
+            node
+            async for node in compute_nodes
+            if node.address not in blacklisted_nodes
+        )
+        executors = [
+            AlephExecutor(node=node, vm_function=self.vm_function)
+            async for node in whitelisted_nodes
+        ]
+
+        return executors
+
+
 
 class UsePredeterminedExecutors(ExecutorSelectionPolicy):
     """
