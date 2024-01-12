@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import aiohttp
 from aleph.sdk.chains.ethereum import ETHAccount
-from aleph.sdk.client import AuthenticatedAlephClient
+from aleph.sdk.client import AuthenticatedAlephHttpClient
 from aleph_message.models import ItemHash
 from aleph_message.status import MessageStatus
 from hexbytes import HexBytes
@@ -67,7 +67,7 @@ async def post_executor_api_request(url: str, model: Type[M]) -> M:
 
 
 async def _generate_vrf(
-    aleph_client: AuthenticatedAlephClient,
+    aleph_client: AuthenticatedAlephHttpClient,
     nb_executors: int,
     nb_bytes: int,
     vrf_function: ItemHash,
@@ -144,7 +144,7 @@ async def generate_vrf(
 ):
     vrf_function = vrf_function or settings.FUNCTION
 
-    async with AuthenticatedAlephClient(
+    async with AuthenticatedAlephHttpClient(
         account=account,
         api_server=aleph_api_server or settings.API_HOST,
         # Avoid going through the VM connector on aleph.im CRNs
@@ -270,7 +270,7 @@ def generate_final_vrf(
 
 
 async def publish_data(
-    aleph_client: AuthenticatedAlephClient,
+    aleph_client: AuthenticatedAlephHttpClient,
     data: Union[VRFRequest, VRFResponse],
     ref: str,
 ) -> ItemHash:

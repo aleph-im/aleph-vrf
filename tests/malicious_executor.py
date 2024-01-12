@@ -16,7 +16,7 @@ else:
 
 logger = logging.getLogger(__name__)
 
-from aleph.sdk.client import AuthenticatedAlephClient
+from aleph.sdk.client import AuthenticatedAlephHttpClient
 from aleph.sdk.vm.app import AlephApp
 from aleph_message.models import ItemHash
 
@@ -36,7 +36,7 @@ app = AlephApp(http_app=http_app)
 async def receive_generate(
     vrf_request_hash: ItemHash,
     aleph_client: Annotated[
-        AuthenticatedAlephClient, Depends(authenticated_aleph_client)
+        AuthenticatedAlephHttpClient, Depends(authenticated_aleph_client)
     ],
 ) -> APIResponse[PublishedVRFRandomNumberHash]:
     from aleph_vrf.executor.main import receive_generate as real_receive_generate
@@ -50,7 +50,7 @@ async def receive_generate(
 async def receive_publish(
     message_hash: ItemHash,
     aleph_client: Annotated[
-        AuthenticatedAlephClient, Depends(authenticated_aleph_client)
+        AuthenticatedAlephHttpClient, Depends(authenticated_aleph_client)
     ],
 ) -> APIResponse[PublishedVRFRandomNumber]:
     from aleph_vrf.executor.main import receive_publish as real_receive_publish

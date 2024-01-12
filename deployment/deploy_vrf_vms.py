@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Optional, Tuple, Dict
 
-from aleph.sdk import AuthenticatedAlephClient
+from aleph.sdk.client import AuthenticatedAlephHttpClient
 from aleph.sdk.chains.common import get_fallback_private_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph_message.models import ItemHash, ProgramMessage
@@ -30,7 +30,7 @@ def mksquashfs(path: Path, destination: Path) -> None:
 
 
 async def upload_dir_as_volume(
-    aleph_client: AuthenticatedAlephClient,
+    aleph_client: AuthenticatedAlephHttpClient,
     dir_path: Path,
     channel: str,
     volume_path: Optional[Path] = None,
@@ -52,7 +52,7 @@ async def upload_dir_as_volume(
 
 
 async def deploy_python_program(
-    aleph_client: AuthenticatedAlephClient,
+    aleph_client: AuthenticatedAlephHttpClient,
     code_volume_hash: ItemHash,
     entrypoint: str,
     venv_hash: ItemHash,
@@ -101,7 +101,7 @@ async def deploy_vrf(
     account = ETHAccount(private_key)
     channel = "vrf-tests"
 
-    async with AuthenticatedAlephClient(
+    async with AuthenticatedAlephHttpClient(
         account=account, api_server=settings.API_HOST
     ) as aleph_client:
         # Upload the code and venv volumes
