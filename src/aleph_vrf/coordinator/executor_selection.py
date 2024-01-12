@@ -135,7 +135,6 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
         return executors
 
 
-
 class UsePredeterminedExecutors(ExecutorSelectionPolicy):
     """
     Use a hardcoded list of executors.
