@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Generic, List, TypeVar
 
 import fastapi
@@ -75,7 +77,7 @@ class PublishedVRFRandomNumberHash(VRFRandomNumberHash):
     @classmethod
     def from_vrf_response_hash(
         cls, vrf_response_hash: VRFRandomNumberHash, message_hash: ItemHash
-    ) -> "PublishedVRFRandomNumberHash":
+    ) -> PublishedVRFRandomNumberHash:
         return cls(
             nb_bytes=vrf_response_hash.nb_bytes,
             nonce=vrf_response_hash.nonce,
@@ -89,7 +91,7 @@ class PublishedVRFRandomNumberHash(VRFRandomNumberHash):
     @classmethod
     def from_published_message(
         cls, message: PostMessage
-    ) -> "PublishedVRFRandomNumberHash":
+    ) -> PublishedVRFRandomNumberHash:
         vrf_response_hash = message.content.content
         return cls(
             nb_bytes=vrf_response_hash.nb_bytes,
@@ -133,7 +135,7 @@ class PublishedVRFRandomNumber(VRFRandomNumber):
     @classmethod
     def from_vrf_random_number(
         cls, vrf_random_number: VRFRandomNumber, message_hash: ItemHash
-    ) -> "PublishedVRFRandomNumber":
+    ) -> PublishedVRFRandomNumber:
         return cls(
             request_id=vrf_random_number.request_id,
             execution_id=vrf_random_number.execution_id,
@@ -144,7 +146,7 @@ class PublishedVRFRandomNumber(VRFRandomNumber):
         )
 
     @classmethod
-    def from_published_message(cls, message: PostMessage) -> "PublishedVRFRandomNumber":
+    def from_published_message(cls, message: PostMessage) -> PublishedVRFRandomNumber:
         vrf_random_number = message.content.content
         return cls(
             request_id=vrf_random_number.request_id,
@@ -181,7 +183,7 @@ class PublishedVRFResponse(VRFResponse):
     @classmethod
     def from_vrf_response(
         cls, vrf_response: VRFResponse, message_hash: ItemHash
-    ) -> "PublishedVRFResponse":
+    ) -> PublishedVRFResponse:
         return cls(
             nb_bytes=vrf_response.nb_bytes,
             nb_executors=vrf_response.nb_executors,
@@ -194,7 +196,7 @@ class PublishedVRFResponse(VRFResponse):
         )
 
     @classmethod
-    def from_vrf_post_message(cls, post_message: PostMessage) -> "PublishedVRFResponse":
+    def from_vrf_post_message(cls, post_message: PostMessage) -> PublishedVRFResponse:
         vrf_response = post_message.content.content
         return cls(
             nb_bytes=vrf_response.nb_bytes,

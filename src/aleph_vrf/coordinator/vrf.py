@@ -65,10 +65,12 @@ async def post_executor_api_request(url: str, model: Type[M]) -> M:
 async def prepare_executor_api_request(url: str) -> bool:
     async with aiohttp.ClientSession() as session:
         async with session.get(url, timeout=120) as resp:
-            if resp.status != 200:
+            try:
+                resp.raise_for_status()
+            except aiohttp.ClientResponseError as error:
                 raise ExecutorHttpError(
                     url=url, status_code=resp.status, response_text=await resp.text()
-                )
+                ) from error
 
             response = await resp.json()
 
@@ -98,15 +100,12 @@ async def _generate_vrf(
 
             return message
 
-    if not request_id:
-        request_id = str(uuid4())
-
     vrf_request = VRFRequest(
         nb_bytes=nb_bytes,
         nb_executors=nb_executors,
         nonce=nonce,
         vrf_function=vrf_function,
-        request_id=RequestId(request_id),
+        request_id=RequestId(request_id or str(uuid4())),
         node_list_hash=sha3_256(selected_nodes_json).hexdigest(),
     )
 
@@ -334,11 +333,13 @@ async def get_existing_vrf_message(
         refs=[ref],
     )
 
-    if not messages:
+    if messages:
+        if len(messages) > 1:
+            logger.warning(f"Multiple VRF messages found for request id {request_id}")
+        return messages[0]
+    else:
         logger.debug(f"Existing VRF message for request id {request_id} not found")
         return None
-
-    return messages[0]
 
 
 async def get_existing_message(
