@@ -67,14 +67,12 @@ async def prepare_executor_api_request(url: str) -> bool:
         async with session.get(url, timeout=120) as resp:
             try:
                 resp.raise_for_status()
+                response = await resp.json()
+                return response["name"] == "vrf_generate_api"
             except aiohttp.ClientResponseError as error:
                 raise ExecutorHttpError(
                     url=url, status_code=resp.status, response_text=await resp.text()
                 ) from error
-
-            response = await resp.json()
-
-            return response["name"] == "vrf_generate_api"
 
 
 async def _generate_vrf(
