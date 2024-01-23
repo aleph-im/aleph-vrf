@@ -14,7 +14,7 @@ from fastapi import FastAPI
 
 logger.debug("local imports")
 from aleph_vrf.coordinator.vrf import generate_vrf
-from aleph_vrf.models import APIResponse, PublishedVRFResponse, APIError
+from aleph_vrf.models import APIError, APIResponse, PublishedVRFResponse
 
 logger.debug("imports done")
 

@@ -1,14 +1,12 @@
-from typing import List
-from typing import TypeVar, Generic
+from typing import Generic, List, TypeVar
 
 import fastapi
 from aleph_message.models import ItemHash, PostMessage
 from aleph_message.models.abstract import HashableModel
-from pydantic import BaseModel
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pydantic.generics import GenericModel
 
-from aleph_vrf.types import Nonce, RequestId, ExecutionId
+from aleph_vrf.types import ExecutionId, Nonce, RequestId
 
 
 class Node(HashableModel):
@@ -166,6 +164,20 @@ class PublishedVRFResponse(VRFResponse):
             executors=vrf_response.executors,
             random_number=vrf_response.random_number,
             message_hash=message_hash,
+        )
+
+    @classmethod
+    def from_vrf_post_message(cls, post_message: PostMessage) -> "PublishedVRFResponse":
+        vrf_response = post_message.content.content
+        return cls(
+            nb_bytes=vrf_response.nb_bytes,
+            nb_executors=vrf_response.nb_executors,
+            nonce=vrf_response.nonce,
+            vrf_function=vrf_response.vrf_function,
+            request_id=vrf_response.request_id,
+            executors=vrf_response.executors,
+            random_number=vrf_response.random_number,
+            message_hash=post_message.item_hash,
         )
 
 
