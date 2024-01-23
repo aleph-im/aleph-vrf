@@ -86,6 +86,21 @@ class PublishedVRFRandomNumberHash(VRFRandomNumberHash):
             message_hash=message_hash,
         )
 
+    @classmethod
+    def from_published_message(
+        cls, message: PostMessage
+    ) -> "PublishedVRFRandomNumberHash":
+        vrf_response_hash = message.content.content
+        return cls(
+            nb_bytes=vrf_response_hash.nb_bytes,
+            nonce=vrf_response_hash.nonce,
+            request_id=vrf_response_hash.request_id,
+            execution_id=vrf_response_hash.execution_id,
+            vrf_request=vrf_response_hash.vrf_request,
+            random_number_hash=vrf_response_hash.random_number_hash,
+            message_hash=message.item_hash,
+        )
+
 
 def get_random_number_hash_from_message(
     message: PostMessage,
@@ -126,6 +141,18 @@ class PublishedVRFRandomNumber(VRFRandomNumber):
             random_number=vrf_random_number.random_number,
             random_number_hash=vrf_random_number.random_number_hash,
             message_hash=message_hash,
+        )
+
+    @classmethod
+    def from_published_message(cls, message: PostMessage) -> "PublishedVRFRandomNumber":
+        vrf_random_number = message.content.content
+        return cls(
+            request_id=vrf_random_number.request_id,
+            execution_id=vrf_random_number.execution_id,
+            vrf_request=vrf_random_number.vrf_request,
+            random_number=vrf_random_number.random_number,
+            random_number_hash=vrf_random_number.random_number_hash,
+            message_hash=message.item_hash,
         )
 
 

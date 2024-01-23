@@ -23,6 +23,8 @@ from aleph_vrf.exceptions import (
     ExecutorHttpError,
     HashesDoNotMatch,
     HashValidationFailed,
+    PublishedHashesDoNotMatch,
+    PublishedHashValidationFailed,
     RandomNumberGenerationFailed,
     RandomNumberPublicationFailed,
 )
@@ -42,9 +44,7 @@ from aleph_vrf.utils import generate_nonce, verify, xor_all
 VRF_FUNCTION_GENERATE_PATH = "generate"
 VRF_FUNCTION_PUBLISH_PATH = "publish"
 
-
 logger = logging.getLogger(__name__)
-
 
 M = TypeVar("M", bound=BaseModel)
 
@@ -93,7 +93,10 @@ async def _generate_vrf(
     if request_id:
         existing_message = await get_existing_vrf_message(aleph_client, request_id)
         if existing_message:
-            return PublishedVRFResponse.from_vrf_post_message(existing_message)
+            message = PublishedVRFResponse.from_vrf_post_message(existing_message)
+            await check_message_integrity(aleph_client, message)
+
+            return message
 
     if not request_id:
         request_id = str(uuid4())
@@ -336,3 +339,67 @@ async def get_existing_vrf_message(
         return None
 
     return messages[0]
+
+
+async def get_existing_message(
+    aleph_client: AuthenticatedAlephClient,
+    item_hash: ItemHash,
+) -> Optional[PostMessage]:
+    logger.debug(
+        f"Getting VRF message on {aleph_client.api_server} for item_hash {item_hash}"
+    )
+
+    message, status = await aleph_client.get_message(
+        item_hash=item_hash,
+    )
+
+    if not message:
+        logger.debug(f"Existing VRF message for item_hash {item_hash} not found")
+        raise AlephNetworkError(
+            f"Message could not be read for item_hash {message.item_hash}"
+        )
+
+    return message
+
+
+async def check_message_integrity(
+    aleph_client: AuthenticatedAlephClient, message: PublishedVRFResponse
+):
+    logger.debug(
+        f"Checking VRF response message on {aleph_client.api_server} for item_hash {message.message_hash}"
+    )
+
+    for executor in message.executors:
+        generation_message = await get_existing_message(
+            aleph_client, executor.generation_message_hash
+        )
+        loaded_generation_message = PublishedVRFRandomNumberHash.from_published_message(
+            generation_message
+        )
+        publish_message = await get_existing_message(
+            aleph_client, executor.publication_message_hash
+        )
+        loaded_publish_message = PublishedVRFRandomNumber.from_published_message(
+            publish_message
+        )
+
+        if (
+            loaded_generation_message.random_number_hash
+            != loaded_publish_message.random_number_hash
+        ):
+            raise PublishedHashesDoNotMatch(
+                executor=executor,
+                generation_hash=loaded_generation_message.random_number_hash,
+                publication_hash=loaded_publish_message.random_number_hash,
+            )
+
+        if not verify(
+            HexBytes(loaded_publish_message.random_number),
+            loaded_generation_message.nonce,
+            loaded_generation_message.random_number_hash,
+        ):
+            raise PublishedHashValidationFailed(
+                executor=executor,
+                random_number=loaded_publish_message,
+                random_number_hash=loaded_generation_message.random_number_hash,
+            )
