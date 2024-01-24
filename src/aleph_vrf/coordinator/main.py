@@ -1,5 +1,7 @@
 import logging
-from typing import Union
+from typing import Optional, Union
+
+from pydantic import BaseModel
 
 from aleph_vrf.settings import settings
 
@@ -23,6 +25,10 @@ app = AlephApp(http_app=http_app)
 cache = VmCache()
 
 
+class VRFRequest(BaseModel):
+    request_id: Optional[str]
+
+
 @app.get("/")
 async def index():
     return {
@@ -34,7 +40,9 @@ async def index():
 
 
 @app.post("/vrf")
-async def receive_vrf() -> APIResponse[Union[PublishedVRFResponse, APIError]]:
+async def receive_vrf(
+    request: VRFRequest,
+) -> APIResponse[Union[PublishedVRFResponse, APIError]]:
     """
     Goes through the VRF random number generation process and returns a random number
     along with details on how the number was generated.
@@ -44,8 +52,9 @@ async def receive_vrf() -> APIResponse[Union[PublishedVRFResponse, APIError]]:
 
     response: Union[PublishedVRFResponse, APIError]
 
+    request_id = request.request_id if request and request.request_id else None
     try:
-        response = await generate_vrf(account)
+        response = await generate_vrf(account=account, request_id=request_id)
     except Exception as err:
         response = APIError(error=str(err))
 
