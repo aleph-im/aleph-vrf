@@ -36,6 +36,9 @@ class ExecutorError(Exception):
     def __init__(self, executor: Executor):
         self.executor = executor
 
+    def __str__(self):
+        return f"Executor failed for executor {self.executor.api_url}."
+
 
 class RandomNumberGenerationFailed(ExecutorError):
     """
