@@ -355,22 +355,26 @@ async def get_existing_message(
     )
 
     if not message:
-        logger.debug(f"Existing VRF message for item_hash {item_hash} not found")
         raise AlephNetworkError(
             f"Message could not be read for item_hash {message.item_hash}"
+        )
+
+    if status != MessageStatus.PROCESSED:
+        raise AlephNetworkError(
+            f"Message found for item_hash {message.item_hash} not in processed status"
         )
 
     return message
 
 
 async def check_message_integrity(
-    aleph_client: AuthenticatedAlephClient, message: PublishedVRFResponse
+    aleph_client: AuthenticatedAlephClient, vrf_response: PublishedVRFResponse
 ):
     logger.debug(
-        f"Checking VRF response message on {aleph_client.api_server} for item_hash {message.message_hash}"
+        f"Checking VRF response message on {aleph_client.api_server} for item_hash {vrf_response.message_hash}"
     )
 
-    for executor in message.executors:
+    for executor in vrf_response.executors:
         generation_message = await get_existing_message(
             aleph_client, executor.generation_message_hash
         )
