@@ -92,7 +92,7 @@ class PublishedVRFRandomNumberHash(VRFRandomNumberHash):
     def from_published_message(
         cls, message: PostMessage
     ) -> PublishedVRFRandomNumberHash:
-        vrf_response_hash = message.content.content
+        vrf_response_hash = VRFRandomNumberHash.parse_obj(message.content.content)
         return cls(
             nb_bytes=vrf_response_hash.nb_bytes,
             nonce=vrf_response_hash.nonce,
@@ -147,7 +147,7 @@ class PublishedVRFRandomNumber(VRFRandomNumber):
 
     @classmethod
     def from_published_message(cls, message: PostMessage) -> PublishedVRFRandomNumber:
-        vrf_random_number = message.content.content
+        vrf_random_number = VRFRandomNumber.parse_obj(message.content.content)
         return cls(
             request_id=vrf_random_number.request_id,
             execution_id=vrf_random_number.execution_id,
@@ -197,7 +197,7 @@ class PublishedVRFResponse(VRFResponse):
 
     @classmethod
     def from_vrf_post_message(cls, post_message: PostMessage) -> PublishedVRFResponse:
-        vrf_response = post_message.content.content
+        vrf_response = VRFResponse.parse_obj(post_message.content.content)
         return cls(
             nb_bytes=vrf_response.nb_bytes,
             nb_executors=vrf_response.nb_executors,
