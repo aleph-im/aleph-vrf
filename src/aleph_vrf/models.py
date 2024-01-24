@@ -1,14 +1,14 @@
-from typing import List
-from typing import TypeVar, Generic
+from __future__ import annotations
+
+from typing import Generic, List, TypeVar
 
 import fastapi
 from aleph_message.models import ItemHash, PostMessage
 from aleph_message.models.abstract import HashableModel
-from pydantic import BaseModel
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pydantic.generics import GenericModel
 
-from aleph_vrf.types import Nonce, RequestId, ExecutionId
+from aleph_vrf.types import ExecutionId, Nonce, RequestId
 
 
 class Node(HashableModel):
@@ -77,7 +77,7 @@ class PublishedVRFRandomNumberHash(VRFRandomNumberHash):
     @classmethod
     def from_vrf_response_hash(
         cls, vrf_response_hash: VRFRandomNumberHash, message_hash: ItemHash
-    ) -> "PublishedVRFRandomNumberHash":
+    ) -> PublishedVRFRandomNumberHash:
         return cls(
             nb_bytes=vrf_response_hash.nb_bytes,
             nonce=vrf_response_hash.nonce,
@@ -86,6 +86,21 @@ class PublishedVRFRandomNumberHash(VRFRandomNumberHash):
             vrf_request=vrf_response_hash.vrf_request,
             random_number_hash=vrf_response_hash.random_number_hash,
             message_hash=message_hash,
+        )
+
+    @classmethod
+    def from_published_message(
+        cls, message: PostMessage
+    ) -> PublishedVRFRandomNumberHash:
+        vrf_response_hash = VRFRandomNumberHash.parse_obj(message.content.content)
+        return cls(
+            nb_bytes=vrf_response_hash.nb_bytes,
+            nonce=vrf_response_hash.nonce,
+            request_id=vrf_response_hash.request_id,
+            execution_id=vrf_response_hash.execution_id,
+            vrf_request=vrf_response_hash.vrf_request,
+            random_number_hash=vrf_response_hash.random_number_hash,
+            message_hash=message.item_hash,
         )
 
 
@@ -120,7 +135,7 @@ class PublishedVRFRandomNumber(VRFRandomNumber):
     @classmethod
     def from_vrf_random_number(
         cls, vrf_random_number: VRFRandomNumber, message_hash: ItemHash
-    ) -> "PublishedVRFRandomNumber":
+    ) -> PublishedVRFRandomNumber:
         return cls(
             request_id=vrf_random_number.request_id,
             execution_id=vrf_random_number.execution_id,
@@ -128,6 +143,18 @@ class PublishedVRFRandomNumber(VRFRandomNumber):
             random_number=vrf_random_number.random_number,
             random_number_hash=vrf_random_number.random_number_hash,
             message_hash=message_hash,
+        )
+
+    @classmethod
+    def from_published_message(cls, message: PostMessage) -> PublishedVRFRandomNumber:
+        vrf_random_number = VRFRandomNumber.parse_obj(message.content.content)
+        return cls(
+            request_id=vrf_random_number.request_id,
+            execution_id=vrf_random_number.execution_id,
+            vrf_request=vrf_random_number.vrf_request,
+            random_number=vrf_random_number.random_number,
+            random_number_hash=vrf_random_number.random_number_hash,
+            message_hash=message.item_hash,
         )
 
 
@@ -156,7 +183,7 @@ class PublishedVRFResponse(VRFResponse):
     @classmethod
     def from_vrf_response(
         cls, vrf_response: VRFResponse, message_hash: ItemHash
-    ) -> "PublishedVRFResponse":
+    ) -> PublishedVRFResponse:
         return cls(
             nb_bytes=vrf_response.nb_bytes,
             nb_executors=vrf_response.nb_executors,
@@ -166,6 +193,20 @@ class PublishedVRFResponse(VRFResponse):
             executors=vrf_response.executors,
             random_number=vrf_response.random_number,
             message_hash=message_hash,
+        )
+
+    @classmethod
+    def from_vrf_post_message(cls, post_message: PostMessage) -> PublishedVRFResponse:
+        vrf_response = VRFResponse.parse_obj(post_message.content.content)
+        return cls(
+            nb_bytes=vrf_response.nb_bytes,
+            nb_executors=vrf_response.nb_executors,
+            nonce=vrf_response.nonce,
+            vrf_function=vrf_response.vrf_function,
+            request_id=vrf_response.request_id,
+            executors=vrf_response.executors,
+            random_number=vrf_response.random_number,
+            message_hash=post_message.item_hash,
         )
 
 

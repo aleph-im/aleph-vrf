@@ -6,7 +6,6 @@ from utilitybelt import dev_urandom_entropy
 
 from aleph_vrf.types import Nonce
 
-
 # Used for compatibility with HexBytes or any class that inherits bytes
 BytesLike = TypeVar("BytesLike", bound="bytes")
 

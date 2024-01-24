@@ -2,13 +2,13 @@ import asyncio
 import json
 import logging
 from hashlib import sha3_256
-from typing import Dict, List, Type, TypeVar, Union, Optional
+from typing import Dict, List, Optional, Type, TypeVar, Union
 from uuid import uuid4
 
 import aiohttp
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client import AuthenticatedAlephClient
-from aleph_message.models import ItemHash
+from aleph_message.models import ItemHash, MessageType, PostMessage
 from aleph_message.status import MessageStatus
 from hexbytes import HexBytes
 from pydantic import BaseModel
@@ -19,36 +19,32 @@ from aleph_vrf.coordinator.executor_selection import (
     ExecutorSelectionPolicy,
 )
 from aleph_vrf.exceptions import (
-    HashValidationFailed,
     AlephNetworkError,
     ExecutorHttpError,
-    RandomNumberPublicationFailed,
-    RandomNumberGenerationFailed,
     HashesDoNotMatch,
+    HashValidationFailed,
+    PublishedHashesDoNotMatch,
+    PublishedHashValidationFailed,
+    RandomNumberGenerationFailed,
+    RandomNumberPublicationFailed,
 )
 from aleph_vrf.models import (
+    Executor,
     ExecutorVRFResponse,
+    PublishedVRFRandomNumber,
+    PublishedVRFRandomNumberHash,
+    PublishedVRFResponse,
     VRFRequest,
     VRFResponse,
-    PublishedVRFRandomNumberHash,
-    PublishedVRFRandomNumber,
-    Executor,
-    PublishedVRFResponse,
 )
 from aleph_vrf.settings import settings
-from aleph_vrf.types import RequestId, Nonce
-from aleph_vrf.utils import (
-    generate_nonce,
-    verify,
-    xor_all,
-)
+from aleph_vrf.types import Nonce, RequestId
+from aleph_vrf.utils import generate_nonce, verify, xor_all
 
 VRF_FUNCTION_GENERATE_PATH = "generate"
 VRF_FUNCTION_PUBLISH_PATH = "publish"
 
-
 logger = logging.getLogger(__name__)
-
 
 M = TypeVar("M", bound=BaseModel)
 
@@ -66,12 +62,28 @@ async def post_executor_api_request(url: str, model: Type[M]) -> M:
             return model.parse_obj(response["data"])
 
 
+async def prepare_executor_api_request(url: str) -> bool:
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, timeout=120) as resp:
+            try:
+                resp.raise_for_status()
+            except aiohttp.ClientResponseError as error:
+                raise ExecutorHttpError(
+                    url=url, status_code=resp.status, response_text=await resp.text()
+                ) from error
+
+            response = await resp.json()
+
+            return response["name"] == "vrf_generate_api"
+
+
 async def _generate_vrf(
     aleph_client: AuthenticatedAlephClient,
     nb_executors: int,
     nb_bytes: int,
     vrf_function: ItemHash,
     executor_selection_policy: ExecutorSelectionPolicy,
+    request_id: Optional[str] = None,
 ) -> PublishedVRFResponse:
     executors = await executor_selection_policy.select_executors(nb_executors)
     selected_nodes_json = json.dumps(
@@ -80,12 +92,20 @@ async def _generate_vrf(
 
     nonce = generate_nonce()
 
+    if request_id:
+        existing_message = await get_existing_vrf_message(aleph_client, request_id)
+        if existing_message:
+            message = PublishedVRFResponse.from_vrf_post_message(existing_message)
+            await check_message_integrity(aleph_client, message)
+
+            return message
+
     vrf_request = VRFRequest(
         nb_bytes=nb_bytes,
         nb_executors=nb_executors,
         nonce=nonce,
         vrf_function=vrf_function,
-        request_id=RequestId(str(uuid4())),
+        request_id=RequestId(request_id or str(uuid4())),
         node_list_hash=sha3_256(selected_nodes_json).hexdigest(),
     )
 
@@ -136,6 +156,7 @@ async def _generate_vrf(
 
 async def generate_vrf(
     account: ETHAccount,
+    request_id: Optional[str] = None,
     nb_executors: Optional[int] = None,
     nb_bytes: Optional[int] = None,
     vrf_function: Optional[ItemHash] = None,
@@ -152,6 +173,7 @@ async def generate_vrf(
     ) as aleph_client:
         return await _generate_vrf(
             aleph_client=aleph_client,
+            request_id=request_id,
             nb_executors=nb_executors or settings.NB_EXECUTORS,
             nb_bytes=nb_bytes or settings.NB_BYTES,
             vrf_function=vrf_function or settings.FUNCTION,
@@ -292,3 +314,92 @@ async def publish_data(
         )
 
     return message.item_hash
+
+
+async def get_existing_vrf_message(
+    aleph_client: AuthenticatedAlephClient,
+    request_id: str,
+) -> Optional[PostMessage]:
+    channel = f"vrf_{request_id}"
+    ref = f"vrf_{request_id}"
+
+    logger.debug(
+        f"Getting VRF messages on {aleph_client.api_server} from request id {request_id}"
+    )
+
+    messages = await aleph_client.get_messages(
+        message_type=MessageType.post,
+        channels=[channel],
+        refs=[ref],
+    )
+
+    if messages.messages:
+        if len(messages.messages) > 1:
+            logger.warning(f"Multiple VRF messages found for request id {request_id}")
+        return messages.messages[0]
+    else:
+        logger.debug(f"Existing VRF message for request id {request_id} not found")
+        return None
+
+
+async def get_existing_message(
+    aleph_client: AuthenticatedAlephClient,
+    item_hash: ItemHash,
+) -> Optional[PostMessage]:
+    logger.debug(
+        f"Getting VRF message on {aleph_client.api_server} for item_hash {item_hash}"
+    )
+
+    message = await aleph_client.get_message(
+        item_hash=item_hash,
+    )
+
+    if not message:
+        raise AlephNetworkError(
+            f"Message could not be read for item_hash {message.item_hash}"
+        )
+
+    return message
+
+
+async def check_message_integrity(
+    aleph_client: AuthenticatedAlephClient, vrf_response: PublishedVRFResponse
+):
+    logger.debug(
+        f"Checking VRF response message on {aleph_client.api_server} for item_hash {vrf_response.message_hash}"
+    )
+
+    for executor in vrf_response.executors:
+        generation_message = await get_existing_message(
+            aleph_client, executor.generation_message_hash
+        )
+        loaded_generation_message = PublishedVRFRandomNumberHash.from_published_message(
+            generation_message
+        )
+        publish_message = await get_existing_message(
+            aleph_client, executor.publication_message_hash
+        )
+        loaded_publish_message = PublishedVRFRandomNumber.from_published_message(
+            publish_message
+        )
+
+        if (
+            loaded_generation_message.random_number_hash
+            != loaded_publish_message.random_number_hash
+        ):
+            raise PublishedHashesDoNotMatch(
+                executor=executor,
+                generation_hash=loaded_generation_message.random_number_hash,
+                publication_hash=loaded_publish_message.random_number_hash,
+            )
+
+        if not verify(
+            HexBytes(loaded_publish_message.random_number),
+            loaded_generation_message.nonce,
+            loaded_generation_message.random_number_hash,
+        ):
+            raise PublishedHashValidationFailed(
+                executor=executor,
+                random_number=loaded_publish_message,
+                random_number_hash=loaded_generation_message.random_number_hash,
+            )
