@@ -1,6 +1,6 @@
 import logging
 import sys
-from typing import Dict, Union, Set
+from typing import Dict, Set, Union
 from uuid import uuid4
 
 from aleph_vrf.exceptions import AlephNetworkError
@@ -26,17 +26,17 @@ from aleph_message.models import ItemHash, PostMessage
 from aleph_message.status import MessageStatus
 
 logger.debug("import fastapi")
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI
 
 logger.debug("local imports")
 from aleph_vrf.models import (
     APIResponse,
+    PublishedVRFRandomNumber,
+    PublishedVRFRandomNumberHash,
     VRFRandomNumber,
     VRFRandomNumberHash,
-    get_vrf_request_from_message,
     get_random_number_hash_from_message,
-    PublishedVRFRandomNumberHash,
-    PublishedVRFRandomNumber,
+    get_vrf_request_from_message,
 )
 from aleph_vrf.utils import generate
 
@@ -115,7 +115,9 @@ async def receive_generate(
             detail=f"A random number has already been generated for request {vrf_request_hash}",
         )
 
-    random_number, random_number_hash = generate(vrf_request.nb_bytes, vrf_request.nonce)
+    random_number, random_number_hash = generate(
+        vrf_request.nb_bytes, vrf_request.nonce
+    )
     GENERATED_NUMBERS[execution_id] = random_number
     ANSWERED_REQUESTS.add(vrf_request.request_id)
 

@@ -1,14 +1,14 @@
 import abc
 import json
-from pathlib import Path
-from typing import List, Dict, Any, AsyncIterator
 import random
+from pathlib import Path
+from typing import Any, AsyncIterator, Dict, List
 
 import aiohttp
 from aleph_message.models import ItemHash
 
-from aleph_vrf.exceptions import NotEnoughExecutors, AlephNetworkError
-from aleph_vrf.models import Executor, Node, AlephExecutor, ComputeResourceNode
+from aleph_vrf.exceptions import AlephNetworkError, NotEnoughExecutors
+from aleph_vrf.models import AlephExecutor, ComputeResourceNode, Executor, Node
 from aleph_vrf.settings import settings
 
 

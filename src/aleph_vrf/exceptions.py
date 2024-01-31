@@ -1,4 +1,4 @@
-from aleph_vrf.models import Executor, PublishedVRFRandomNumber
+from aleph_vrf.models import Executor, ExecutorVRFResponse, PublishedVRFRandomNumber
 
 
 class VrfException(Exception):
@@ -72,6 +72,25 @@ class HashesDoNotMatch(VrfException):
         )
 
 
+class PublishedHashesDoNotMatch(VrfException):
+    """
+    The random number hash received from /publish is different from the one received from /generate.
+    """
+
+    def __init__(
+        self, executor: ExecutorVRFResponse, generation_hash: str, publication_hash: str
+    ):
+        self.executor = executor
+        self.generation_hash = generation_hash
+        self.publication_hash = publication_hash
+
+    def __str__(self):
+        return (
+            f"Published random number hash ({self.publication_hash})"
+            f"does not match the generated one ({self.generation_hash})."
+        )
+
+
 class HashValidationFailed(VrfException):
     """
     A random number does not match the SHA3 hash sent by the executor.
@@ -90,6 +109,29 @@ class HashValidationFailed(VrfException):
     def __str__(self):
         return (
             f"The random number published by {self.executor.api_url} "
+            f"(execution ID: {self.random_number.execution_id}) "
+            "does not match the hash."
+        )
+
+
+class PublishedHashValidationFailed(VrfException):
+    """
+    A random number does not match the SHA3 hash sent by the executor.
+    """
+
+    def __init__(
+        self,
+        random_number: PublishedVRFRandomNumber,
+        random_number_hash: str,
+        executor: ExecutorVRFResponse,
+    ):
+        self.random_number = random_number
+        self.random_number_hash = random_number_hash
+        self.executor = executor
+
+    def __str__(self):
+        return (
+            f"The random number published by {self.executor.url} "
             f"(execution ID: {self.random_number.execution_id}) "
             "does not match the hash."
         )
