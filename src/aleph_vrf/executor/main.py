@@ -20,7 +20,7 @@ from aleph_vrf.types import ExecutionId, RequestId
 logger = logging.getLogger(__name__)
 
 logger.debug("import aleph_client")
-from aleph.sdk.client import AlephClient, AuthenticatedAlephClient
+from aleph.sdk.client import AlephHttpClient, AuthenticatedAlephHttpClient
 from aleph.sdk.vm.app import AlephApp
 from aleph_message.models import ItemHash, PostMessage
 from aleph_message.status import MessageStatus
@@ -52,9 +52,9 @@ http_app = FastAPI()
 app = AlephApp(http_app=http_app)
 
 
-async def authenticated_aleph_client() -> AuthenticatedAlephClient:
+async def authenticated_aleph_client() -> AuthenticatedAlephHttpClient:
     account = settings.aleph_account()
-    async with AuthenticatedAlephClient(
+    async with AuthenticatedAlephHttpClient(
         account=account,
         api_server=settings.API_HOST,
         # Avoid going through the VM connector on aleph.im CRNs
@@ -71,7 +71,7 @@ async def index():
     }
 
 
-async def _get_message(client: AlephClient, item_hash: ItemHash) -> PostMessage:
+async def _get_message(client: AlephHttpClient, item_hash: ItemHash) -> PostMessage:
     try:
         return await client.get_message(item_hash=item_hash, message_type=PostMessage)
     except MessageNotFoundError:
@@ -93,7 +93,7 @@ async def _get_message(client: AlephClient, item_hash: ItemHash) -> PostMessage:
 async def receive_generate(
     vrf_request_hash: ItemHash,
     aleph_client: Annotated[
-        AuthenticatedAlephClient, Depends(authenticated_aleph_client)
+        AuthenticatedAlephHttpClient, Depends(authenticated_aleph_client)
     ],
 ) -> APIResponse[PublishedVRFRandomNumberHash]:
     """
@@ -152,7 +152,7 @@ async def receive_generate(
 async def receive_publish(
     message_hash: ItemHash,
     aleph_client: Annotated[
-        AuthenticatedAlephClient, Depends(authenticated_aleph_client)
+        AuthenticatedAlephHttpClient, Depends(authenticated_aleph_client)
     ],
 ) -> APIResponse[PublishedVRFRandomNumber]:
     """
@@ -197,7 +197,7 @@ async def receive_publish(
 
 
 async def publish_data(
-    aleph_client: AuthenticatedAlephClient,
+    aleph_client: AuthenticatedAlephHttpClient,
     data: Union[VRFRandomNumberHash, VRFRandomNumber],
     ref: str,
 ) -> ItemHash:

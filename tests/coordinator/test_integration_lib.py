@@ -1,7 +1,7 @@
 from typing import Tuple, Dict, List
 
 import pytest
-from aleph.sdk import AlephClient
+from aleph.sdk.client import AlephHttpClient
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph_message.models import PostMessage, ItemHash
@@ -76,7 +76,7 @@ async def assert_aleph_message_matches_vrf_response(
 ) -> PostMessage:
     assert vrf_response.message_hash
 
-    async with AlephClient(api_server=ccn_url) as client:
+    async with AlephHttpClient(api_server=ccn_url) as client:
         message = await client.get_message(
             vrf_response.message_hash, message_type=PostMessage
         )
