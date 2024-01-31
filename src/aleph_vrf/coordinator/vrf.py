@@ -339,7 +339,7 @@ async def get_existing_vrf_message(
     if messages.messages:
         if len(messages.messages) > 1:
             logger.warning(f"Multiple VRF messages found for request id {request_id}")
-        return messages.messages[0]
+        return messages.messages[-1]
     else:
         logger.debug(f"Existing VRF message for request id {request_id} not found")
         return None
