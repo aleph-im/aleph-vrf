@@ -56,7 +56,7 @@ async def authenticated_aleph_client() -> AuthenticatedAlephHttpClient:
     account = settings.aleph_account()
     async with AuthenticatedAlephHttpClient(
         account=account,
-        api_server=settings.API_HOST,
+        api_server=settings.api_host,
         # Avoid going through the VM connector on aleph.im CRNs
         allow_unix_sockets=False,
     ) as client:

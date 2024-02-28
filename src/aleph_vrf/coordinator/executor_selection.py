@@ -31,7 +31,7 @@ async def _get_corechannel_aggregate() -> Dict[str, Any]:
     Returns the "corechannel" aleph.im aggregate.
     This aggregate contains an up-to-date list of staked nodes on the network.
     """
-    async with aiohttp.ClientSession(settings.API_HOST) as session:
+    async with aiohttp.ClientSession(settings.api_host) as session:
         url = (
             f"/api/v0/aggregates/{settings.CORECHANNEL_AGGREGATE_ADDRESS}.json?"
             f"keys={settings.CORECHANNEL_AGGREGATE_KEY}"
