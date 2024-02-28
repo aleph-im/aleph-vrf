@@ -102,7 +102,7 @@ async def deploy_vrf(
     channel = "vrf-tests"
 
     async with AuthenticatedAlephHttpClient(
-        account=account, api_server=settings.API_HOST
+        account=account, api_server=settings.api_host
     ) as aleph_client:
         # Upload the code and venv volumes
         print("Uploading code volume...")
