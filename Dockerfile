@@ -1,4 +1,4 @@
-FROM debian:bookworm
+FROM --platform=linux/amd64 debian:bookworm
 
 RUN apt-get update && apt-get -y upgrade && apt-get install -y \
      git \
@@ -13,4 +13,5 @@ COPY . .
 
 RUN mkdir /opt/packages
 RUN pip install -t /opt/packages .
+
 ENV PYTHONPATH=/opt/packages
