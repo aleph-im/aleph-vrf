@@ -67,8 +67,8 @@ async def receive_vrf(
         request: Optional[VRFRequest] = None,
 ) -> APIResponse[Union[PublishedVRFResponse, APIError]]:
     """
-    Goes through the VRF random number generation process and returns a random number
-    along with details on how the number was generated.
+    Goes through the test VRF random number generation process and returns a random number
+    along with details on how the number was generated, but just using 1 predefined executor.
     """
 
     account = settings.aleph_account()
