@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException
 
 logger.debug("local imports")
 from aleph_vrf.coordinator.vrf import generate_vrf
-from aleph_vrf.models import APIError, APIResponse, PublishedVRFResponse, Node, AlephExecutor
+from aleph_vrf.models import APIError, APIResponse, PublishedVRFResponse, AlephExecutor, ComputeResourceNode
 
 logger.debug("imports done")
 
@@ -78,9 +78,10 @@ async def receive_test_vrf(
     request_id = request.request_id if request and request.request_id else None
     try:
         executor_url = (
-            "https://CRN_URL"  # CRN main URL, like https://ovh.staging.aleph.sh/
+            "https://CRN_URL"  # CRN main URL, like https://hetzner.staging.aleph.sh
         )
-        executors = [AlephExecutor(node=Node(address=executor_url))]
+        executor_node = ComputeResourceNode(address=executor_url, hash="", score=0)
+        executors = [AlephExecutor(node=executor_node, vm_function=settings.FUNCTION)]
         executor_policy = UsePredeterminedExecutors(executors)
         response = await generate_vrf(
             account=account,
