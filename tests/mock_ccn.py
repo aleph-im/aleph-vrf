@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, List
 
 from aleph_message.models import ItemHash
 from aleph_message.status import MessageStatus
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,9 @@ MESSAGES: Dict[ItemHash, Dict[str, Any]] = {}
 
 @app.get("/api/v0/messages.json")
 async def get_messages(hashes: Optional[str], page: int = 1, pagination: int = 20):
+    """
+    Mock messages.json endpoint
+    """
     hashes = [ItemHash(h) for h in hashes.split(",")] if hashes is not None else []
     messages = [MESSAGES[item_hash] for item_hash in hashes if item_hash in MESSAGES]
     paginated_messages = messages[(page - 1) * pagination : page * pagination]
@@ -33,6 +36,26 @@ async def get_messages(hashes: Optional[str], page: int = 1, pagination: int = 2
         "pagination_total": len(messages),
         "pagination_item": "messages",
     }
+
+
+class MessageResponse(BaseModel):
+    message: Dict[str, Any]
+    status: str
+
+
+@app.get("/api/v0/messages/{item_hash}")
+async def get_message(item_hash: str):
+    """
+    Mock individual view message endpoint
+    """
+    message = MESSAGES.get(ItemHash(item_hash))
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    return MessageResponse(
+        message=message,
+        status="processed"
+    )
 
 
 class PubMessageRequest(BaseModel):

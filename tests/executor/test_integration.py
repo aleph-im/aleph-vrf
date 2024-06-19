@@ -5,7 +5,7 @@ from typing import Dict, Any, Union, Tuple
 import aiohttp
 import pytest
 import pytest_asyncio
-from aleph.sdk import AlephClient
+from aleph.sdk.client import AlephHttpClient
 from aleph_message.models import (
     ItemType,
     MessageType,
@@ -156,7 +156,7 @@ async def assert_aleph_message_matches_random_number_hash(
 ) -> PostMessage:
     assert random_number_hash.message_hash
 
-    async with AlephClient(api_server=ccn_url) as client:
+    async with AlephHttpClient(api_server=ccn_url) as client:
         message = await client.get_message(
             random_number_hash.message_hash, message_type=PostMessage
         )
@@ -182,7 +182,7 @@ async def assert_aleph_message_matches_random_number(
     ccn_url: Any,  # aiohttp does not expose its URL type
     random_number: PublishedVRFRandomNumber,
 ) -> PostMessage:
-    async with AlephClient(api_server=ccn_url) as client:
+    async with AlephHttpClient(api_server=ccn_url) as client:
         message = await client.get_message(
             random_number.message_hash, message_type=PostMessage
         )

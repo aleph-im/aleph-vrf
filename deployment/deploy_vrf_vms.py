@@ -7,18 +7,22 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Optional, Tuple, Dict
 
-from aleph.sdk import AuthenticatedAlephClient
+from aleph.sdk.client import AuthenticatedAlephHttpClient
 from aleph.sdk.chains.common import get_fallback_private_key
 from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.types import StorageEnum
 from aleph_message.models import ItemHash, ProgramMessage
+from aleph_message.models.execution.base import Encoding
 from aleph_message.models.execution.volume import ImmutableVolume
 from aleph_message.status import MessageStatus
 
 from aleph_vrf.settings import settings
 from prepare_vrf_vms import prepare_executor_nodes, create_unauthorized_file
 
+# Debian 12 with Aleph SDK 0.9.1
 DEBIAN12_RUNTIME = ItemHash(
-    "ed2c37ae857edaea1d36a43fdd0fb9fdb7a2c9394957e6b53d9c94bf67f32ac3"
+    # "ed2c37ae857edaea1d36a43fdd0fb9fdb7a2c9394957e6b53d9c94bf67f32ac3" Old Debian 12 runtime with SDK 0.7.0
+    "7041de41c6e3de6792b06f44ab4b698616981efde8d229da8d4fceaa43eb7479"
 )
 
 
@@ -31,10 +35,10 @@ def mksquashfs(path: Path, destination: Path) -> None:
 
 
 async def upload_dir_as_volume(
-        aleph_client: AuthenticatedAlephClient,
-        dir_path: Path,
-        channel: str,
-        volume_path: Optional[Path] = None,
+    aleph_client: AuthenticatedAlephHttpClient,
+    dir_path: Path,
+    channel: str,
+    volume_path: Optional[Path] = None,
 ):
     volume_path = volume_path or Path(f"{dir_path}.squashfs")
     if volume_path.exists():
@@ -44,7 +48,7 @@ async def upload_dir_as_volume(
     mksquashfs(dir_path, volume_path)
 
     store_message, status = await aleph_client.create_store(
-        file_path=volume_path, sync=True, channel=channel
+        file_path=volume_path, sync=True, channel=channel, storage_engine=StorageEnum.ipfs
     )
     if status not in (MessageStatus.PENDING, MessageStatus.PROCESSED):
         raise RuntimeError(f"Could not upload venv volume: {status}")
@@ -53,17 +57,18 @@ async def upload_dir_as_volume(
 
 
 async def deploy_python_program(
-        aleph_client: AuthenticatedAlephClient,
-        code_volume_hash: ItemHash,
-        entrypoint: str,
-        venv_hash: ItemHash,
-        channel: str,
-        environment: Optional[Dict[str, str]] = None,
-        timeout_seconds: Optional[int] = None,
+    aleph_client: AuthenticatedAlephHttpClient,
+    code_volume_hash: ItemHash,
+    entrypoint: str,
+    venv_hash: ItemHash,
+    channel: str,
+    environment: Optional[Dict[str, str]] = None,
+    timeout_seconds: Optional[int] = None,
 ) -> ProgramMessage:
     program_message, status = await aleph_client.create_program(
         program_ref=code_volume_hash,
         entrypoint=entrypoint,
+        encoding=Encoding.squashfs,
         runtime=DEBIAN12_RUNTIME,
         volumes=[
             ImmutableVolume(
@@ -106,8 +111,8 @@ async def deploy_vrf(
     channel = "vrf-tests"
     unauthorized_list = False
 
-    async with AuthenticatedAlephClient(
-            account=account, api_server=settings.API_HOST
+    async with AuthenticatedAlephHttpClient(
+        account=account, api_server=settings.API_HOST
     ) as aleph_client:
         # Upload the code and venv volumes
         print("Uploading code volume...")
