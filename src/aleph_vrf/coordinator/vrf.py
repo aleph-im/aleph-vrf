@@ -166,7 +166,7 @@ async def generate_vrf(
 
     async with AuthenticatedAlephHttpClient(
         account=account,
-        api_server=aleph_api_server or settings.API_HOST,
+        api_server=aleph_api_server or settings.api_host,
         # Avoid going through the VM connector on aleph.im CRNs
         allow_unix_sockets=False,
     ) as aleph_client:

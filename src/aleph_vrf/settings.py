@@ -2,14 +2,16 @@ from typing import Optional
 
 from aleph.sdk.chains.common import get_fallback_private_key
 from aleph.sdk.chains.ethereum import ETHAccount
+from aleph.sdk.conf import settings as sdk_settings
 from hexbytes import HexBytes
 from pydantic import BaseSettings, Field, HttpUrl
 
 
 class Settings(BaseSettings):
-    API_HOST: HttpUrl = Field(
-        default="https://api2.aleph.im",
-        description="URL of the reference aleph.im Core Channel Node.",
+    API_HOST: Optional[HttpUrl] = Field(
+        default=None,
+        description="URL of the reference aleph.im Core Channel Node. "
+        "If None, the value from the SDK settings is used.",
     )
     CORECHANNEL_AGGREGATE_ADDRESS = Field(
         default="0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10",
@@ -29,6 +31,10 @@ class Settings(BaseSettings):
     ETHEREUM_PRIVATE_KEY: Optional[str] = Field(
         default=None, description="Application private key to post to aleph.im."
     )
+
+    @property
+    def api_host(self) -> HttpUrl:
+        return self.API_HOST or sdk_settings.api_host
 
     def private_key(self) -> HexBytes:
         if self.ETHEREUM_PRIVATE_KEY:

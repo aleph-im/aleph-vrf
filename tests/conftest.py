@@ -70,19 +70,20 @@ def mock_ccn() -> str:
     host, port = "127.0.0.1", 4024
     url = f"http://{host}:{port}"
 
-    default_api_host = settings.API_HOST
+    try:
+        # Configure the mock CCN as API host. Note that `settings` must be modified as the object is
+        # already built when running all tests in the same run.
+        os.environ["ALEPH_VRF_API_HOST"] = url
+        settings.API_HOST = url
 
-    # Configure the mock CCN as API host. Note that `settings` must be modified as the object is
-    # already built when running all tests in the same run.
-    os.environ["ALEPH_VRF_API_HOST"] = url
-    settings.API_HOST = url
+        with run_http_app(app=mock_ccn_app, host=host, port=port):
+            yield url
 
-    with run_http_app(app=mock_ccn_app, host=host, port=port):
-        yield url
-
-    # Clean up settings for other tests
-    del os.environ["ALEPH_VRF_API_HOST"]
-    settings.API_HOST = default_api_host
+        # Clean up settings for other tests
+        del os.environ["ALEPH_VRF_API_HOST"]
+    finally:
+        # Restore the original settings
+        settings.API_HOST = None
 
 
 @pytest_asyncio.fixture
