@@ -2,13 +2,13 @@ import abc
 import json
 import random
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, List
+from typing import Any, AsyncIterator, Dict, List, Union
 
 import aiohttp
 from aleph_message.models import ItemHash
 
 from aleph_vrf.exceptions import AlephNetworkError, NotEnoughExecutors
-from aleph_vrf.models import AlephExecutor, ComputeResourceNode, Executor, Node
+from aleph_vrf.models import AlephExecutor, ComputeResourceNode, Executor, VRFExecutor
 from aleph_vrf.settings import settings
 
 
@@ -98,26 +98,34 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
 
         return []
 
-    async def select_executors(self, nb_executors: int) -> List[Executor]:
+    async def select_executors(self, nb_executors: int) -> List[VRFExecutor]:
         """
         Selects nb_executors compute resource nodes at random from the aleph.im network.
         """
 
         compute_nodes = self._list_compute_nodes()
         blacklisted_nodes = self._get_unauthorized_nodes()
-        whitelisted_nodes = (
-            node
-            async for node in compute_nodes
-            if node.address not in blacklisted_nodes
-        )
+
         executors = [
             AlephExecutor(node=node, vm_function=self.vm_function)
-            async for node in whitelisted_nodes
+            async for node in compute_nodes
+            if node.address not in blacklisted_nodes
         ]
 
         if len(executors) < nb_executors:
             raise NotEnoughExecutors(requested=nb_executors, available=len(executors))
         return random.sample(executors, nb_executors)
+
+    async def get_candidate_executors(self) -> List[VRFExecutor]:
+        compute_nodes = self._list_compute_nodes()
+        blacklisted_nodes = self._get_unauthorized_nodes()
+        executors: List[VRFExecutor] = [
+            AlephExecutor(node=node, vm_function=self.vm_function)
+            async for node in compute_nodes
+            if node.address not in blacklisted_nodes
+        ]
+
+        return executors
 
 
 class UsePredeterminedExecutors(ExecutorSelectionPolicy):
@@ -125,10 +133,10 @@ class UsePredeterminedExecutors(ExecutorSelectionPolicy):
     Use a hardcoded list of executors.
     """
 
-    def __init__(self, executors: List[Executor]):
+    def __init__(self, executors: List[VRFExecutor]):
         self.executors = executors
 
-    async def select_executors(self, nb_executors: int) -> List[Executor]:
+    async def select_executors(self, nb_executors: int) -> List[VRFExecutor]:
         """
         Returns nb_executors from the hardcoded list of executors.
         If nb_executors is lower than the total number of executors, this method

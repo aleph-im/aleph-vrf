@@ -68,14 +68,12 @@ async def prepare_executor_api_request(url: str) -> bool:
         async with session.get(url, timeout=120) as resp:
             try:
                 resp.raise_for_status()
+                response = await resp.json()
+                return response["name"] == "vrf_generate_api"
             except aiohttp.ClientResponseError as error:
                 raise ExecutorHttpError(
                     url=url, status_code=resp.status, response_text=await resp.text()
                 ) from error
-
-            response = await resp.json()
-
-            return response["name"] == "vrf_generate_api"
 
 
 async def _generate_vrf(
@@ -164,7 +162,7 @@ async def generate_vrf(
     aleph_api_server: Optional[str] = None,
     executor_selection_policy: Optional[ExecutorSelectionPolicy] = None,
 ):
-    vrf_function = vrf_function or settings.FUNCTION
+    vrf_function = vrf_function or ItemHash(settings.FUNCTION)
 
     async with AuthenticatedAlephHttpClient(
         account=account,
@@ -177,7 +175,7 @@ async def generate_vrf(
             request_id=request_id,
             nb_executors=nb_executors or settings.NB_EXECUTORS,
             nb_bytes=nb_bytes or settings.NB_BYTES,
-            vrf_function=vrf_function or settings.FUNCTION,
+            vrf_function=vrf_function,
             executor_selection_policy=executor_selection_policy
             or ExecuteOnAleph(vm_function=vrf_function),
         )
@@ -350,7 +348,7 @@ async def get_existing_vrf_message(
 async def get_existing_message(
     aleph_client: AuthenticatedAlephHttpClient,
     item_hash: ItemHash,
-) -> Optional[PostMessage]:
+) -> PostMessage:
     logger.debug(
         f"Getting VRF message on {aleph_client.api_server} for item_hash {item_hash}"
     )

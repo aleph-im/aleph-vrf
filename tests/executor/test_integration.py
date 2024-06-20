@@ -1,28 +1,28 @@
 import datetime as dt
 from hashlib import sha256
-from typing import Dict, Any, Union, Tuple
+from typing import Any, Dict, Tuple, Union
 
 import aiohttp
 import pytest
 import pytest_asyncio
 from aleph.sdk.client import AlephHttpClient
 from aleph_message.models import (
+    Chain,
+    ItemHash,
     ItemType,
     MessageType,
     PostContent,
-    Chain,
-    ItemHash,
     PostMessage,
 )
 from hexbytes import HexBytes
 
 from aleph_vrf.models import (
-    VRFRequest,
-    VRFRandomNumberHash,
-    VRFResponse,
-    VRFRandomNumber,
-    PublishedVRFRandomNumberHash,
     PublishedVRFRandomNumber,
+    PublishedVRFRandomNumberHash,
+    VRFRandomNumber,
+    VRFRandomNumberHash,
+    VRFRequest,
+    VRFResponse,
 )
 from aleph_vrf.types import Nonce, RequestId
 from aleph_vrf.utils import verify

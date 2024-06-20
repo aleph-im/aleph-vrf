@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Generic, List, TypeVar
+from typing import Generic, List, TypeVar, Union
 
 import fastapi
 from aleph_message.models import ItemHash, PostMessage
 from aleph_message.models.abstract import HashableModel
 from pydantic import BaseModel, ValidationError
 from pydantic.generics import GenericModel
+from typing_extensions import TypeAlias
 
 from aleph_vrf.types import ExecutionId, Nonce, RequestId
 
@@ -44,6 +45,9 @@ class VRFRequest(BaseModel):
     vrf_function: ItemHash
     request_id: RequestId
     node_list_hash: str
+
+
+VRFExecutor: TypeAlias = Union[Executor, AlephExecutor]
 
 
 def get_vrf_request_from_message(message: PostMessage) -> VRFRequest:
