@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Generic, List, TypeVar
+from typing import Generic, List, TypeAlias, TypeVar, Union
 
 import fastapi
 from aleph_message.models import ItemHash, PostMessage
@@ -44,6 +44,9 @@ class VRFRequest(BaseModel):
     vrf_function: ItemHash
     request_id: RequestId
     node_list_hash: str
+
+
+VRFExecutor: TypeAlias = Union[Executor, AlephExecutor]
 
 
 def get_vrf_request_from_message(message: PostMessage) -> VRFRequest:

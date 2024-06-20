@@ -8,7 +8,13 @@ import aiohttp
 from aleph_message.models import ItemHash
 
 from aleph_vrf.exceptions import AlephNetworkError, NotEnoughExecutors
-from aleph_vrf.models import AlephExecutor, ComputeResourceNode, Executor, Node
+from aleph_vrf.models import (
+    AlephExecutor,
+    ComputeResourceNode,
+    Executor,
+    Node,
+    VRFExecutor,
+)
 from aleph_vrf.settings import settings
 
 
@@ -98,7 +104,7 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
 
         return []
 
-    async def select_executors(self, nb_executors: int) -> List[Executor]:
+    async def select_executors(self, nb_executors: int) -> List[VRFExecutor]:
         """
         Selects nb_executors compute resource nodes at random from the aleph.im network.
         """
@@ -116,10 +122,10 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
             raise NotEnoughExecutors(requested=nb_executors, available=len(executors))
         return random.sample(executors, nb_executors)
 
-    async def get_candidate_executors(self) -> List[Executor]:
+    async def get_candidate_executors(self) -> List[VRFExecutor]:
         compute_nodes = self._list_compute_nodes()
         blacklisted_nodes = self._get_unauthorized_nodes()
-        executors = [
+        executors: List[VRFExecutor] = [
             AlephExecutor(node=node, vm_function=self.vm_function)
             async for node in compute_nodes
             if node.address not in blacklisted_nodes

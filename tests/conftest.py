@@ -6,12 +6,13 @@
     - https://docs.pytest.org/en/stable/fixture.html
     - https://docs.pytest.org/en/stable/writing_plugins.html
 """
+
 import multiprocessing
 import os
 import socket
-from contextlib import contextmanager, ExitStack, AsyncExitStack
+from contextlib import AsyncExitStack, ExitStack, contextmanager
 from time import sleep
-from typing import Union, Tuple, ContextManager
+from typing import ContextManager, Tuple, Union
 
 import aiohttp
 import fastapi.applications
@@ -20,10 +21,10 @@ import pytest_asyncio
 import uvicorn
 from aleph.sdk.chains.common import generate_key
 from hexbytes import HexBytes
+from malicious_executor import app as malicious_executor_app
+from mock_ccn import app as mock_ccn_app
 
 from aleph_vrf.settings import settings
-from mock_ccn import app as mock_ccn_app
-from malicious_executor import app as malicious_executor_app
 
 
 def wait_for_server(host: str, port: int, nb_retries: int = 10, wait_time: int = 0.1):

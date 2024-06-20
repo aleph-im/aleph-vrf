@@ -2,7 +2,6 @@
 A malicious executor that returns an incorrect random number willingly.
 """
 
-
 import logging
 import sys
 
@@ -19,13 +18,12 @@ logger = logging.getLogger(__name__)
 from aleph.sdk.client import AuthenticatedAlephHttpClient
 from aleph.sdk.vm.app import AlephApp
 from aleph_message.models import ItemHash
-
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI
 
 from aleph_vrf.models import (
     APIResponse,
-    PublishedVRFRandomNumberHash,
     PublishedVRFRandomNumber,
+    PublishedVRFRandomNumberHash,
 )
 
 http_app = FastAPI()

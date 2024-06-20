@@ -1,29 +1,32 @@
-from typing import Tuple, Dict, List
+from typing import Dict, List, Tuple
 
 import pytest
-from aleph.sdk.client import AlephHttpClient
 from aleph.sdk.chains.common import generate_key
 from aleph.sdk.chains.ethereum import ETHAccount
-from aleph_message.models import PostMessage, ItemHash
+from aleph.sdk.client import AlephHttpClient
+from aleph_message.models import ItemHash, PostMessage
 from hexbytes import HexBytes
 
 from aleph_vrf.coordinator.executor_selection import UsePredeterminedExecutors
-from aleph_vrf.coordinator.vrf import generate_vrf, post_executor_api_request
-from aleph_vrf.coordinator.vrf import send_generate_requests
+from aleph_vrf.coordinator.vrf import (
+    generate_vrf,
+    post_executor_api_request,
+    send_generate_requests,
+)
 from aleph_vrf.exceptions import (
-    RandomNumberPublicationFailed,
     HashValidationFailed,
     RandomNumberGenerationFailed,
+    RandomNumberPublicationFailed,
 )
 from aleph_vrf.models import (
     Executor,
     Node,
-    VRFResponse,
-    PublishedVRFResponse,
-    PublishedVRFRandomNumberHash,
     PublishedVRFRandomNumber,
+    PublishedVRFRandomNumberHash,
+    PublishedVRFResponse,
+    VRFResponse,
 )
-from aleph_vrf.utils import xor_all, verify
+from aleph_vrf.utils import verify, xor_all
 
 
 @pytest.fixture

@@ -5,7 +5,7 @@ A simplified core channel node used for testing to avoid relying on the aleph.im
 import json
 import logging
 from enum import Enum
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 from aleph_message.models import ItemHash
 from aleph_message.status import MessageStatus
@@ -52,10 +52,7 @@ async def get_message(item_hash: str):
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    return MessageResponse(
-        message=message,
-        status="processed"
-    )
+    return MessageResponse(message=message, status="processed")
 
 
 class PubMessageRequest(BaseModel):
