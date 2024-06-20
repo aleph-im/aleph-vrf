@@ -1,25 +1,15 @@
 import argparse
 import asyncio
 import json
-import subprocess
 import sys
-from functools import partial
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Optional, Tuple, Dict, List
+from typing import Tuple, List
 
-from aleph.sdk import AuthenticatedAlephClient
-from aleph.sdk.chains.common import get_fallback_private_key
-from aleph.sdk.chains.ethereum import ETHAccount
-from aleph_message.models import ItemHash, ProgramMessage
-from aleph_message.models.execution.volume import ImmutableVolume
-from aleph_message.status import MessageStatus
+from aleph_message.models import ItemHash
 
 from aleph_vrf.coordinator.executor_selection import ExecuteOnAleph
 from aleph_vrf.coordinator.vrf import prepare_executor_api_request
-from aleph_vrf.exceptions import ExecutorError
 from aleph_vrf.models import Executor
-from aleph_vrf.settings import settings
 
 
 async def prepare_executor_nodes(executor_item_hash: ItemHash) -> Tuple[List[Executor], List[Executor]]:

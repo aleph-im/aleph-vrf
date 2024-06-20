@@ -8,13 +8,7 @@ import aiohttp
 from aleph_message.models import ItemHash
 
 from aleph_vrf.exceptions import AlephNetworkError, NotEnoughExecutors
-from aleph_vrf.models import (
-    AlephExecutor,
-    ComputeResourceNode,
-    Executor,
-    Node,
-    VRFExecutor,
-)
+from aleph_vrf.models import AlephExecutor, ComputeResourceNode, Executor, VRFExecutor
 from aleph_vrf.settings import settings
 
 
