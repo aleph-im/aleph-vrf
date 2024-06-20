@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -23,6 +23,7 @@ from aleph_vrf.models import (
     APIResponse,
     ComputeResourceNode,
     PublishedVRFResponse,
+    VRFExecutor,
 )
 
 logger.debug("imports done")
@@ -87,7 +88,9 @@ async def receive_test_vrf(
             "https://CRN_URL"  # CRN main URL, like https://hetzner.staging.aleph.sh
         )
         executor_node = ComputeResourceNode(address=executor_url, hash="", score=0)
-        executors = [AlephExecutor(node=executor_node, vm_function=settings.FUNCTION)]
+        executors: List[VRFExecutor] = [
+            AlephExecutor(node=executor_node, vm_function=settings.FUNCTION)
+        ]
         executor_policy = UsePredeterminedExecutors(executors)
         response = await generate_vrf(
             account=account,

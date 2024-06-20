@@ -133,12 +133,10 @@ class UsePredeterminedExecutors(ExecutorSelectionPolicy):
     Use a hardcoded list of executors.
     """
 
-    def __init__(self, executors: List[Union[Executor, AlephExecutor]]):
+    def __init__(self, executors: List[VRFExecutor]):
         self.executors = executors
 
-    async def select_executors(
-        self, nb_executors: int
-    ) -> List[Union[Executor, AlephExecutor]]:
+    async def select_executors(self, nb_executors: int) -> List[VRFExecutor]:
         """
         Returns nb_executors from the hardcoded list of executors.
         If nb_executors is lower than the total number of executors, this method
