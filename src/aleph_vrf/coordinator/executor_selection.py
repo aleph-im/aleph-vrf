@@ -127,6 +127,15 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
 
         return executors
 
+    async def get_all_executors(self) -> List[VRFExecutor]:
+        compute_nodes = self._list_compute_nodes()
+        executors: List[VRFExecutor] = [
+            AlephExecutor(node=node, vm_function=self.vm_function)
+            async for node in compute_nodes
+        ]
+
+        return executors
+
 
 class UsePredeterminedExecutors(ExecutorSelectionPolicy):
     """

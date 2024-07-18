@@ -14,13 +14,15 @@ from aleph_vrf.models import Executor
 
 async def prepare_executor_nodes(executor_item_hash: ItemHash) -> Tuple[List[Executor], List[Executor]]:
     aleph_selection_policy = ExecuteOnAleph(vm_function=executor_item_hash)
-    executors = await aleph_selection_policy.get_candidate_executors()
+    executors = await aleph_selection_policy.get_all_executors()
+    print(f"Preparing VRF VMs for {len(executors)} nodes")
     prepare_tasks = [asyncio.create_task(prepare_executor_api_request(executor.api_url))
                      for executor in executors]
 
     vrf_prepare_responses = await asyncio.gather(
         *prepare_tasks, return_exceptions=True
     )
+
     prepare_results = dict(zip(executors, vrf_prepare_responses))
 
     failed_nodes = []
