@@ -45,7 +45,7 @@ logger.debug("imports done")
 GENERATE_MESSAGE_REF_PATH = "hash"
 
 # TODO: Use another method to save the data
-ANSWERED_REQUESTS: Set[RequestId] = set()
+ANSWERED_REQUESTS: Set[ItemHash] = set()
 GENERATED_NUMBERS: Dict[ExecutionId, bytes] = {}
 
 http_app = FastAPI()
@@ -105,21 +105,21 @@ async def receive_generate(
 
     global GENERATED_NUMBERS, ANSWERED_REQUESTS
 
-    message = await _get_message(client=aleph_client, item_hash=vrf_request_hash)
-    vrf_request = get_vrf_request_from_message(message)
-    execution_id = ExecutionId(str(uuid4()))
-
-    if vrf_request.request_id in ANSWERED_REQUESTS:
+    if vrf_request_hash in ANSWERED_REQUESTS:
         raise fastapi.HTTPException(
             status_code=409,
             detail=f"A random number has already been generated for request {vrf_request_hash}",
         )
 
+    message = await _get_message(client=aleph_client, item_hash=vrf_request_hash)
+    vrf_request = get_vrf_request_from_message(message)
+    execution_id = ExecutionId(str(uuid4()))
+
     random_number, random_number_hash = generate(
         vrf_request.nb_bytes, vrf_request.nonce
     )
     GENERATED_NUMBERS[execution_id] = random_number
-    ANSWERED_REQUESTS.add(vrf_request.request_id)
+    ANSWERED_REQUESTS.add(vrf_request_hash)
 
     vrf_random_number_hash = VRFRandomNumberHash(
         nb_bytes=vrf_request.nb_bytes,

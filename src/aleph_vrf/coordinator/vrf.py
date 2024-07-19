@@ -64,16 +64,20 @@ async def post_executor_api_request(url: str, model: Type[M]) -> M:
 
 
 async def prepare_executor_api_request(url: str) -> bool:
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, timeout=120) as resp:
-            try:
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=30) as resp:
                 resp.raise_for_status()
                 response = await resp.json()
                 return response["name"] == "vrf_generate_api"
-            except aiohttp.ClientResponseError as error:
-                raise ExecutorHttpError(
-                    url=url, status_code=resp.status, response_text=await resp.text()
-                ) from error
+    except aiohttp.ClientResponseError as error:
+        raise ExecutorHttpError(
+            url=url, status_code=resp.status, response_text=await resp.text()
+        ) from error
+    except asyncio.TimeoutError as error:
+        raise ExecutorHttpError(
+            url=url, status_code=resp.status, response_text=await resp.text()
+        ) from error
 
 
 async def _generate_vrf(
