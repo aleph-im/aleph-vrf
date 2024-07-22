@@ -41,6 +41,7 @@ from aleph_vrf.models import (
     VRFRandomNumberHash,
     get_random_number_hash_from_message,
     get_vrf_request_from_message,
+    OkResponse,
 )
 from aleph_vrf.utils import generate
 
@@ -98,7 +99,7 @@ async def receive_health_check(
         aleph_client: Annotated[
             AuthenticatedAlephHttpClient, Depends(authenticated_aleph_client)
         ],
-) -> APIResponse[Dict]:
+) -> APIResponse[OkResponse]:
     """
     Publishes a health check message.
 
@@ -128,7 +129,7 @@ async def receive_health_check(
             status_code=500, detail=status
         )
 
-    return APIResponse(data={"result": True})
+    return APIResponse(data=OkResponse(result=True))
 
 
 @app.post("/generate/{vrf_request_hash}")
