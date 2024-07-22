@@ -66,10 +66,27 @@ async def post_executor_api_request(url: str, model: Type[M]) -> M:
 async def prepare_executor_api_request(url: str) -> bool:
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=30) as resp:
+            async with session.get(url, timeout=10) as resp:
                 resp.raise_for_status()
                 response = await resp.json()
                 return response["name"] == "vrf_generate_api"
+    except aiohttp.ClientResponseError as error:
+        raise ExecutorHttpError(
+            url=url, status_code=resp.status, response_text=await resp.text()
+        ) from error
+    except asyncio.TimeoutError as error:
+        raise ExecutorHttpError(
+            url=url, status_code=resp.status, response_text=await resp.text()
+        ) from error
+
+
+async def prepare_executor_health_check(url: str) -> bool:
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, timeout=10) as resp:
+                resp.raise_for_status()
+                response = await resp.json()
+                return "data" in response
     except aiohttp.ClientResponseError as error:
         raise ExecutorHttpError(
             url=url, status_code=resp.status, response_text=await resp.text()
@@ -205,7 +222,7 @@ async def send_generate_requests(
 
     for executor, result in generation_results.items():
         if isinstance(result, Exception):
-            raise RandomNumberGenerationFailed(executor=executor) from result
+            raise RandomNumberGenerationFailed(executor=executor, error=str(result)) from result
 
     return generation_results
 
@@ -232,7 +249,7 @@ async def send_publish_requests(
 
     for executor, result in publication_results.items():
         if isinstance(result, Exception):
-            raise RandomNumberPublicationFailed(executor=executor) from result
+            raise RandomNumberPublicationFailed(executor=executor, error=str(result)) from result
 
     return publication_results
 

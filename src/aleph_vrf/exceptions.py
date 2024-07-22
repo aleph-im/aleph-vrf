@@ -33,11 +33,12 @@ class ExecutorError(Exception):
     An error occurred while communicating with an executor.
     """
 
-    def __init__(self, executor: Executor):
+    def __init__(self, executor: Executor, error: str):
         self.executor = executor
+        self.error = error
 
     def __str__(self):
-        return f"Executor failed for executor {self.executor.api_url}."
+        return f"Executor failed for executor {self.executor.api_url} with error: {self.error}"
 
 
 class RandomNumberGenerationFailed(ExecutorError):
@@ -46,7 +47,7 @@ class RandomNumberGenerationFailed(ExecutorError):
     """
 
     def __str__(self):
-        return f"Random number generation failed for executor {self.executor.api_url}."
+        return f"Random number generation failed for executor {self.executor.api_url} with error: {self.error}"
 
 
 class RandomNumberPublicationFailed(ExecutorError):
@@ -55,7 +56,7 @@ class RandomNumberPublicationFailed(ExecutorError):
     """
 
     def __str__(self):
-        return f"Random number publication failed for executor {self.executor.api_url}."
+        return f"Random number publication failed for executor {self.executor.api_url} with error: {self.error}"
 
 
 class HashesDoNotMatch(VrfException):

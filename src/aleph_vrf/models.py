@@ -37,6 +37,10 @@ class AlephExecutor(Executor):
     def api_url(self) -> str:
         return f"{self.node.address}/vm/{self.vm_function}"
 
+    @property
+    def test_api_url(self) -> str:
+        return f"{self.node.address}/vm/{self.vm_function}/health_check"
+
 
 class VRFRequest(BaseModel):
     nb_bytes: int
