@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     VRF_AGGREGATE_KEY = Field(
         default="vrf", description="Key for the VRF aggregate."
     )
-    NB_EXECUTORS: int = Field(default=32, description="Number of executors to use.")
+    NB_EXECUTORS: int = Field(default=16, description="Number of executors to use.")
     NB_BYTES: int = Field(
         default=32, description="Number of bytes of the generated random number."
     )
