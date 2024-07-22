@@ -1,7 +1,11 @@
 import logging
+from datetime import timezone, datetime
+
 import sys
-from typing import Dict, Set, Union
+from typing import Dict, Set, Union, Optional
 from uuid import uuid4
+
+from aleph.sdk.types import StorageEnum
 
 from aleph_vrf.exceptions import AlephNetworkError
 
@@ -15,7 +19,7 @@ import fastapi
 from aleph.sdk.exceptions import MessageNotFoundError, MultipleMessagesError
 
 from aleph_vrf.settings import settings
-from aleph_vrf.types import ExecutionId, RequestId
+from aleph_vrf.types import ExecutionId
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +41,7 @@ from aleph_vrf.models import (
     VRFRandomNumberHash,
     get_random_number_hash_from_message,
     get_vrf_request_from_message,
+    OkResponse,
 )
 from aleph_vrf.utils import generate
 
@@ -87,6 +92,44 @@ async def _get_message(client: AlephHttpClient, item_hash: ItemHash) -> PostMess
         raise fastapi.HTTPException(
             status_code=409, detail=f"Message {item_hash} is not a POST message"
         )
+
+
+@app.post("/health_check")
+async def receive_health_check(
+        aleph_client: Annotated[
+            AuthenticatedAlephHttpClient, Depends(authenticated_aleph_client)
+        ],
+) -> APIResponse[OkResponse]:
+    """
+    Publishes a health check message.
+
+    :param aleph_client: Authenticated aleph.im client.
+    """
+
+    content = {
+        "date": datetime.now(tz=timezone.utc).isoformat(),
+        "test": True,
+        "answer": 42,
+        "something": "interesting",
+    }
+
+    message: PostMessage
+    status: MessageStatus
+    message, status = await aleph_client.create_post(
+        post_content=content,
+        post_type="test",
+        ref=None,
+        channel="TEST",
+        inline=True,
+        storage_engine=StorageEnum.storage,
+        sync=True,
+    )
+    if status != MessageStatus.PROCESSED:
+        raise fastapi.HTTPException(
+            status_code=500, detail=status
+        )
+
+    return APIResponse(data=OkResponse(result=True))
 
 
 @app.post("/generate/{vrf_request_hash}")
@@ -187,7 +230,7 @@ async def receive_publish(
     ref = f"vrf_{response_hash.request_id}_{response_hash.execution_id}"
 
     message_hash = await publish_data(
-        aleph_client=aleph_client, data=vrf_random_number, ref=ref
+        aleph_client=aleph_client, data=vrf_random_number, ref=ref, post_type="vrf_publication_post"
     )
     published_random_number = PublishedVRFRandomNumber.from_vrf_random_number(
         vrf_random_number=vrf_random_number, message_hash=message_hash
@@ -200,6 +243,7 @@ async def publish_data(
     aleph_client: AuthenticatedAlephHttpClient,
     data: Union[VRFRandomNumberHash, VRFRandomNumber],
     ref: str,
+    post_type: Optional[str] = None,
 ) -> ItemHash:
     """
     Publishes the generation/publication artefacts on the aleph.im network as POST messages.
@@ -207,12 +251,15 @@ async def publish_data(
     :param aleph_client: Authenticated aleph.im client.
     :param data: Content of the POST message.
     :param ref: Reference of the POST message.
+    :param post_type: Type of the POST message.
     """
 
     channel = f"vrf_{data.request_id}"
 
+    message_post_type = post_type or "vrf_generation_post"
+
     message, status = await aleph_client.create_post(
-        post_type="vrf_generation_post",
+        post_type=message_post_type,
         post_content=data,
         channel=channel,
         ref=ref,

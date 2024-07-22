@@ -37,6 +37,10 @@ class AlephExecutor(Executor):
     def api_url(self) -> str:
         return f"{self.node.address}/vm/{self.vm_function}"
 
+    @property
+    def test_api_url(self) -> str:
+        return f"{self.node.address}/vm/{self.vm_function}/health_check"
+
 
 class VRFRequest(BaseModel):
     nb_bytes: int
@@ -80,7 +84,7 @@ class PublishedVRFRandomNumberHash(VRFRandomNumberHash):
 
     @classmethod
     def from_vrf_response_hash(
-        cls, vrf_response_hash: VRFRandomNumberHash, message_hash: ItemHash
+            cls, vrf_response_hash: VRFRandomNumberHash, message_hash: ItemHash
     ) -> PublishedVRFRandomNumberHash:
         return cls(
             nb_bytes=vrf_response_hash.nb_bytes,
@@ -94,7 +98,7 @@ class PublishedVRFRandomNumberHash(VRFRandomNumberHash):
 
     @classmethod
     def from_published_message(
-        cls, message: PostMessage
+            cls, message: PostMessage
     ) -> PublishedVRFRandomNumberHash:
         vrf_response_hash = VRFRandomNumberHash.parse_obj(message.content.content)
         return cls(
@@ -109,7 +113,7 @@ class PublishedVRFRandomNumberHash(VRFRandomNumberHash):
 
 
 def get_random_number_hash_from_message(
-    message: PostMessage,
+        message: PostMessage,
 ) -> PublishedVRFRandomNumberHash:
     content = message.content.content
     try:
@@ -138,7 +142,7 @@ class PublishedVRFRandomNumber(VRFRandomNumber):
 
     @classmethod
     def from_vrf_random_number(
-        cls, vrf_random_number: VRFRandomNumber, message_hash: ItemHash
+            cls, vrf_random_number: VRFRandomNumber, message_hash: ItemHash
     ) -> PublishedVRFRandomNumber:
         return cls(
             request_id=vrf_random_number.request_id,
@@ -186,7 +190,7 @@ class PublishedVRFResponse(VRFResponse):
 
     @classmethod
     def from_vrf_response(
-        cls, vrf_response: VRFResponse, message_hash: ItemHash
+            cls, vrf_response: VRFResponse, message_hash: ItemHash
     ) -> PublishedVRFResponse:
         return cls(
             nb_bytes=vrf_response.nb_bytes,
@@ -223,3 +227,7 @@ class APIError(BaseModel):
 
 class APIResponse(GenericModel, Generic[M]):
     data: M
+
+
+class OkResponse(BaseModel):
+    result: bool

@@ -1,8 +1,9 @@
 import abc
 import json
+import logging
 import random
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, List, Union
+from typing import Any, AsyncIterator, Dict, List, Optional
 
 import aiohttp
 from aleph_message.models import ItemHash
@@ -10,6 +11,9 @@ from aleph_message.models import ItemHash
 from aleph_vrf.exceptions import AlephNetworkError, NotEnoughExecutors
 from aleph_vrf.models import AlephExecutor, ComputeResourceNode, Executor, VRFExecutor
 from aleph_vrf.settings import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class ExecutorSelectionPolicy(abc.ABC):
@@ -43,12 +47,42 @@ async def _get_corechannel_aggregate() -> Dict[str, Any]:
             return await response.json()
 
 
+async def _get_unauthorized_node_list_aggregate(aggregate_address: str) -> List[str]:
+    """
+    Returns the "vrf_unauthorized_nodes" list aggregate.
+    This aggregate contains an up-to-date list of nodes not allowed to run a VRF request.
+    """
+    async with aiohttp.ClientSession(settings.API_HOST) as session:
+        url = (
+            f"/api/v0/aggregates/{aggregate_address}.json?"
+            f"keys={settings.VRF_AGGREGATE_KEY}"
+        )
+        async with session.get(url) as response:
+            if response.status != 200:
+                logger.debug("No VRF unauthorized nodes list found")
+                return []
+
+            content = await response.json()
+
+            if (
+                not content["data"]["vrf"]
+                or not content["data"]["vrf"]["unauthorized_nodes"]
+            ):
+                logger.error(f"Bad VRF unauthorized nodes list format")
+                return []
+
+            unauthorized_nodes = content["data"]["vrf"]["unauthorized_nodes"]
+
+            unauthorized_list = [str(unauthorized_node) for unauthorized_node in unauthorized_nodes]
+            return unauthorized_list
+
+
 class ExecuteOnAleph(ExecutorSelectionPolicy):
     """
     Select executors at random on the aleph.im network.
     """
 
-    def __init__(self, vm_function: ItemHash, crn_score_threshold: float = 0.9):
+    def __init__(self, vm_function: ItemHash, crn_score_threshold: float = 0.95):
         self.vm_function = vm_function
         self.crn_score_threshold = crn_score_threshold
 
@@ -83,20 +117,38 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
                 yield node
 
     @staticmethod
-    def _get_unauthorized_nodes() -> List[str]:
+    def _get_unauthorized_nodes_file(unauthorized_nodes_list_path: Optional[Path]) -> List[str]:
         """
         Returns a list of unauthorized nodes.
         The caller may provide a blacklist of nodes by specifying a list of URLs in a file
         named `unauthorized_node_list.json` in the working directory.
         """
-        unauthorized_nodes_list_path = Path(__file__).with_name(
-            "unauthorized_node_list.json"
-        )
+
+        if not unauthorized_nodes_list_path:
+            unauthorized_nodes_list_path = Path(__file__).with_name(
+                "unauthorized_node_list.json"
+            )
         if unauthorized_nodes_list_path.is_file():
             with open(unauthorized_nodes_list_path, "rb") as fd:
                 return json.load(fd)
 
         return []
+
+    async def _get_unauthorized_nodes(self, unauthorized_nodes_list_path: Optional[Path] = None) -> List[str]:
+        """
+        Returns a list of unauthorized nodes.
+        The caller may provide a blacklist of nodes by specifying a list of URLs in a file
+        named `unauthorized_node_list.json` in the working directory.
+        """
+        aggregate_unauthorized_list = []
+        if settings.VRF_AGGREGATE_ADDRESS:
+            aggregate_unauthorized_list = await _get_unauthorized_node_list_aggregate(settings.VRF_AGGREGATE_ADDRESS)
+
+        file_unauthorized_nodes_list = self._get_unauthorized_nodes_file(
+            unauthorized_nodes_list_path=unauthorized_nodes_list_path
+        )
+
+        return aggregate_unauthorized_list + file_unauthorized_nodes_list
 
     async def select_executors(self, nb_executors: int) -> List[VRFExecutor]:
         """
@@ -104,7 +156,7 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
         """
 
         compute_nodes = self._list_compute_nodes()
-        blacklisted_nodes = self._get_unauthorized_nodes()
+        blacklisted_nodes = await self._get_unauthorized_nodes()
 
         executors = [
             AlephExecutor(node=node, vm_function=self.vm_function)
@@ -118,7 +170,7 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
 
     async def get_candidate_executors(self) -> List[VRFExecutor]:
         compute_nodes = self._list_compute_nodes()
-        blacklisted_nodes = self._get_unauthorized_nodes()
+        blacklisted_nodes = await self._get_unauthorized_nodes()
         executors: List[VRFExecutor] = [
             AlephExecutor(node=node, vm_function=self.vm_function)
             async for node in compute_nodes

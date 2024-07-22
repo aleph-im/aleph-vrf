@@ -8,7 +8,7 @@ from pydantic import BaseSettings, Field, HttpUrl
 
 class Settings(BaseSettings):
     API_HOST: HttpUrl = Field(
-        default="https://api2.aleph.im",
+        default="https://api3.aleph.im",
         description="URL of the reference aleph.im Core Channel Node.",
     )
     CORECHANNEL_AGGREGATE_ADDRESS = Field(
@@ -19,8 +19,15 @@ class Settings(BaseSettings):
         default="corechannel", description="Key for the `corechannel` aggregate."
     )
     FUNCTION: str = Field(
-        default="6ad7c5ace3dfbb68954f1eea6b775d8a38610f8d0fdc48b4f1b85ccfa9795931",
+        default="de2efddc3e312b02744d918e60f5f74d4fa4925950798e5f4a8b44e1de301bcb",
         description="VRF function to use.",
+    )
+    VRF_AGGREGATE_ADDRESS: Optional[str] = Field(
+        default="0xA07B1214bAe0D5ccAA25449C3149c0aC83658874",
+        description="Address posting the `corechannel` aggregate.",
+    )
+    VRF_AGGREGATE_KEY = Field(
+        default="vrf", description="Key for the VRF aggregate."
     )
     NB_EXECUTORS: int = Field(default=32, description="Number of executors to use.")
     NB_BYTES: int = Field(
