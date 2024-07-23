@@ -144,7 +144,7 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
         aggregate_unauthorized_list = []
         aggregate_address = self.aggregate_address or settings.VRF_AGGREGATE_ADDRESS
         if aggregate_address:
-            aggregate_unauthorized_list = await _get_unauthorized_node_list_aggregate(settings.VRF_AGGREGATE_ADDRESS)
+            aggregate_unauthorized_list = await _get_unauthorized_node_list_aggregate(settings.aggregate_address)
 
         file_unauthorized_nodes_list = self._get_unauthorized_nodes_file(
             unauthorized_nodes_list_path=unauthorized_nodes_list_path
