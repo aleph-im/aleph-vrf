@@ -23,7 +23,7 @@ class Settings(BaseSettings):
         description="VRF function to use.",
     )
     VRF_AGGREGATE_ADDRESS: Optional[str] = Field(
-        default="0xA07B1214bAe0D5ccAA25449C3149c0aC83658874",
+        default=None,
         description="Address posting the `corechannel` aggregate.",
     )
     VRF_AGGREGATE_KEY = Field(

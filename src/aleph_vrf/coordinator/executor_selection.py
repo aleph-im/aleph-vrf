@@ -82,9 +82,10 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
     Select executors at random on the aleph.im network.
     """
 
-    def __init__(self, vm_function: ItemHash, crn_score_threshold: float = 0.95):
+    def __init__(self, vm_function: ItemHash, aggregate_address: Optional[str] = None, crn_score_threshold: float = 0.95):
         self.vm_function = vm_function
         self.crn_score_threshold = crn_score_threshold
+        self.aggregate_address = aggregate_address
 
     async def _list_compute_nodes(self) -> AsyncIterator[ComputeResourceNode]:
         """
@@ -141,7 +142,8 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
         named `unauthorized_node_list.json` in the working directory.
         """
         aggregate_unauthorized_list = []
-        if settings.VRF_AGGREGATE_ADDRESS:
+        aggregate_address = self.aggregate_address or settings.VRF_AGGREGATE_ADDRESS
+        if aggregate_address:
             aggregate_unauthorized_list = await _get_unauthorized_node_list_aggregate(settings.VRF_AGGREGATE_ADDRESS)
 
         file_unauthorized_nodes_list = self._get_unauthorized_nodes_file(
