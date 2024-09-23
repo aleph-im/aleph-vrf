@@ -105,13 +105,6 @@ async def _generate_vrf(
     executor_selection_policy: ExecutorSelectionPolicy,
     request_id: Optional[str] = None,
 ) -> PublishedVRFResponse:
-    executors = await executor_selection_policy.select_executors(nb_executors)
-    selected_nodes_json = json.dumps(
-        [executor.node for executor in executors], default=pydantic_encoder
-    ).encode(encoding="utf-8")
-
-    nonce = generate_nonce()
-
     if request_id:
         existing_message = await get_existing_vrf_message(aleph_client, request_id)
         if existing_message:
@@ -119,6 +112,13 @@ async def _generate_vrf(
             await check_message_integrity(aleph_client, message)
 
             return message
+
+    executors = await executor_selection_policy.select_executors(nb_executors)
+    selected_nodes_json = json.dumps(
+        [executor.node for executor in executors], default=pydantic_encoder
+    ).encode(encoding="utf-8")
+
+    nonce = generate_nonce()
 
     vrf_request = VRFRequest(
         nb_bytes=nb_bytes,
