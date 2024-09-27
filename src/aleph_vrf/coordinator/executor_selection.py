@@ -6,12 +6,13 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 import aiohttp
+import math
 from aleph_message.models import ItemHash
 
 from aleph_vrf.exceptions import AlephNetworkError, NotEnoughExecutors
 from aleph_vrf.models import AlephExecutor, ComputeResourceNode, Executor, VRFExecutor
 from aleph_vrf.settings import settings
-
+from aleph_vrf.utils import percentile
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,12 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
     Select executors at random on the aleph.im network.
     """
 
-    def __init__(self, vm_function: ItemHash, aggregate_address: Optional[str] = None, crn_score_threshold: float = 0.95):
+    def __init__(
+            self,
+            vm_function: ItemHash,
+            aggregate_address: Optional[str] = None,
+            crn_score_threshold: Optional[float] = None
+    ):
         self.vm_function = vm_function
         self.crn_score_threshold = crn_score_threshold
         self.aggregate_address = aggregate_address
@@ -103,11 +109,15 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
 
         resource_nodes = content["data"]["corechannel"]["resource_nodes"]
 
+        if not self.crn_score_threshold:
+            self.crn_score_threshold = self._get_minimum_score_threshold(resource_nodes)
+            print(f"Filtering CRNs with score better than {self.crn_score_threshold}")
+
         for resource_node in resource_nodes:
             # Filter nodes by score, with linked status
             if (
                 resource_node["status"] == "linked"
-                and resource_node["score"] > self.crn_score_threshold
+                and resource_node["score"] >= self.crn_score_threshold
             ):
                 node_address = resource_node["address"].strip("/")
                 node = ComputeResourceNode(
@@ -116,6 +126,22 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
                     score=resource_node["score"],
                 )
                 yield node
+
+    @staticmethod
+    def _get_minimum_score_threshold(
+        resource_nodes: List[ComputeResourceNode],
+        percentile_value: int = 75
+    ) -> float:
+        """
+        Returns the 75 percentile of all CRN scores as a minimum score threshold
+        """
+        # Returns score and filter by linked status
+        scores = [resource_node["score"] for resource_node in resource_nodes if resource_node["status"] == "linked"]
+
+        score_percentile = percentile(scores, percentile_value)
+        # Round down minimum score to 3 decimals
+        rounded_score = math.floor(score_percentile * 1000) / 1000
+        return rounded_score
 
     @staticmethod
     def _get_unauthorized_nodes_file(unauthorized_nodes_list_path: Optional[Path]) -> List[str]:
