@@ -129,7 +129,7 @@ class ExecuteOnAleph(ExecutorSelectionPolicy):
 
     @staticmethod
     def _get_minimum_score_threshold(
-        resource_nodes: List[ComputeResourceNode],
+        resource_nodes: List[Dict[str, Any]],
         percentile_value: int = 75
     ) -> float:
         """
