@@ -144,7 +144,7 @@ async def test_select_random_nodes(fixture_nodes_aggregate: Dict[str, Any], mock
         "aleph_vrf.coordinator.executor_selection._get_corechannel_aggregate",
         return_value=fixture_nodes_aggregate,
     )
-    executor_selection_policy = ExecuteOnAleph(vm_function=ItemHash("cafe" * 16))
+    executor_selection_policy = ExecuteOnAleph(vm_function=ItemHash("cafe" * 16), crn_score_threshold=0.9)
 
     executors = await executor_selection_policy.select_executors(3)
     # Sanity check, avoid network accesses
@@ -173,7 +173,7 @@ async def test_select_random_nodes_with_unauthorized(
         return_value=fixture_nodes_aggregate,
     )
     blacklist = ["https://aleph2.serverrg.eu"]
-    executor_selection_policy = ExecuteOnAleph(vm_function=ItemHash("cafe" * 16))
+    executor_selection_policy = ExecuteOnAleph(vm_function=ItemHash("cafe" * 16), crn_score_threshold=0.9)
     mocker.patch.object(
         executor_selection_policy, "_get_unauthorized_nodes", return_value=blacklist
     )
@@ -196,3 +196,30 @@ async def test_select_random_nodes_with_unauthorized(
 
     assert exception.value.available == 3
     assert exception.value.requested == 4
+
+
+@pytest.mark.asyncio
+async def test_select_random_nodes_with_percentile_threshold(
+    fixture_nodes_aggregate: Dict[str, Any], mocker
+):
+    """
+    Checks that the percentile filter works on node selection.
+    """
+    network_fixture = mocker.patch(
+        "aleph_vrf.coordinator.executor_selection._get_corechannel_aggregate",
+        return_value=fixture_nodes_aggregate,
+    )
+    executor_selection_policy = ExecuteOnAleph(vm_function=ItemHash("cafe" * 16))
+
+    executors = await executor_selection_policy.select_executors(1)
+    # Sanity check, avoid network accesses
+    network_fixture.assert_called_once()
+
+    assert len(executors) == 1
+
+    resource_nodes = fixture_nodes_aggregate["data"]["corechannel"]["resource_nodes"]
+    with pytest.raises(NotEnoughExecutors) as exception:
+        await executor_selection_policy.select_executors(len(resource_nodes))
+
+    assert exception.value.available == 1
+    assert exception.value.requested == len(resource_nodes)
