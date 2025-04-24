@@ -36,7 +36,7 @@ async def _get_corechannel_aggregate() -> Dict[str, Any]:
     Returns the "corechannel" aleph.im aggregate.
     This aggregate contains an up-to-date list of staked nodes on the network.
     """
-    async with aiohttp.ClientSession(settings.API_HOST) as session:
+    async with aiohttp.ClientSession(str(settings.API_HOST)) as session:
         url = (
             f"/api/v0/aggregates/{settings.CORECHANNEL_AGGREGATE_ADDRESS}.json?"
             f"keys={settings.CORECHANNEL_AGGREGATE_KEY}"
@@ -53,7 +53,7 @@ async def _get_unauthorized_node_list_aggregate(aggregate_address: str) -> List[
     Returns the "vrf_unauthorized_nodes" list aggregate.
     This aggregate contains an up-to-date list of nodes not allowed to run a VRF request.
     """
-    async with aiohttp.ClientSession(settings.API_HOST) as session:
+    async with aiohttp.ClientSession(str(settings.API_HOST)) as session:
         url = (
             f"/api/v0/aggregates/{aggregate_address}.json?"
             f"keys={settings.VRF_AGGREGATE_KEY}"

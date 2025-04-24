@@ -34,7 +34,7 @@ cache = VmCache()
 
 
 class VRFRequest(BaseModel):
-    request_id: Optional[str]
+    request_id: Optional[str] = None
 
 
 @app.get("/")

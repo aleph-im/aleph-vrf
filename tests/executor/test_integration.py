@@ -53,7 +53,7 @@ def make_post_message(
         content=vrf_object,
     )
 
-    item_content = content.json()
+    item_content = content.model_dump_json()
     item_hash = sha256(item_content.encode()).hexdigest()
 
     return {
@@ -161,7 +161,7 @@ async def assert_aleph_message_matches_random_number_hash(
             random_number_hash.message_hash, message_type=PostMessage
         )
 
-    message_random_number_hash = VRFRandomNumberHash.parse_obj(message.content.content)
+    message_random_number_hash = VRFRandomNumberHash.model_validate(message.content.content)
     assert_vrf_random_number_hash_equal(message_random_number_hash, random_number_hash)
 
     return message
@@ -187,7 +187,7 @@ async def assert_aleph_message_matches_random_number(
             random_number.message_hash, message_type=PostMessage
         )
 
-    message_random_number = VRFRandomNumber.parse_obj(message.content.content)
+    message_random_number = VRFRandomNumber.model_validate(message.content.content)
     assert_vrf_random_number_equal(message_random_number, random_number)
 
     return message
@@ -213,7 +213,7 @@ async def test_normal_request_flow(
     assert resp.status == 200, await resp.text()
     response_json = await resp.json()
 
-    random_number_hash = PublishedVRFRandomNumberHash.parse_obj(response_json["data"])
+    random_number_hash = PublishedVRFRandomNumberHash.model_validate(response_json["data"])
 
     assert_vrf_hash_matches_request(random_number_hash, vrf_request, item_hash)
     random_number_hash_message = await assert_aleph_message_matches_random_number_hash(
@@ -224,7 +224,7 @@ async def test_normal_request_flow(
     assert resp.status == 200, await resp.text()
     response_json = await resp.json()
 
-    random_number = PublishedVRFRandomNumber.parse_obj(response_json["data"])
+    random_number = PublishedVRFRandomNumber.model_validate(response_json["data"])
     assert_random_number_matches_request(
         random_number=random_number,
         random_number_hash=random_number_hash,
@@ -256,7 +256,7 @@ async def test_call_publish_twice(
     assert resp.status == 200, await resp.text()
     response_json = await resp.json()
 
-    random_number_hash = PublishedVRFRandomNumberHash.parse_obj(response_json["data"])
+    random_number_hash = PublishedVRFRandomNumberHash.model_validate(response_json["data"])
 
     # Call POST /publish a first time
     resp = await executor_client.post(f"/publish/{random_number_hash.message_hash}")

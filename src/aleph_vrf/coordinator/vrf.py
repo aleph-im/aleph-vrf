@@ -9,7 +9,7 @@ import aiohttp
 from aleph.sdk.chains.ethereum import ETHAccount
 from aleph.sdk.client import AuthenticatedAlephHttpClient
 from aleph.sdk.query.filters import MessageFilter
-from aleph_message.models import ItemHash, MessageType, PostMessage
+from aleph_message.models import ItemHash, MessageType, PostMessage, AlephMessage
 from aleph_message.status import MessageStatus
 from hexbytes import HexBytes
 from pydantic import BaseModel
@@ -60,7 +60,7 @@ async def post_executor_api_request(url: str, model: Type[M]) -> M:
 
             response = await resp.json()
 
-            return model.parse_obj(response["data"])
+            return model.model_validate(response["data"])
 
 
 async def prepare_executor_api_request(url: str) -> bool:
@@ -187,7 +187,7 @@ async def generate_vrf(
 
     async with AuthenticatedAlephHttpClient(
         account=account,
-        api_server=aleph_api_server or settings.API_HOST,
+        api_server=aleph_api_server or str(settings.API_HOST),
         # Avoid going through the VM connector on aleph.im CRNs
         allow_unix_sockets=False,
     ) as aleph_client:
@@ -358,9 +358,11 @@ async def get_existing_vrf_message(
     if messages.messages:
         if len(messages.messages) > 1:
             logger.warning(f"Multiple VRF messages found for request id {request_id}")
-        return messages.messages[
-            -1
-        ]  # Always fetch the last VRF message in case there is more than 1.
+        # Ensure we're returning a PostMessage
+        last_message = messages.messages[-1]
+        if isinstance(last_message, PostMessage):
+            return last_message
+        return None
     else:
         logger.debug(f"Existing VRF message for request id {request_id} not found")
         return None
@@ -374,13 +376,18 @@ async def get_existing_message(
         f"Getting VRF message on {aleph_client.api_server} for item_hash {item_hash}"
     )
 
-    message = await aleph_client.get_message(
+    message: AlephMessage = await aleph_client.get_message(
         item_hash=item_hash,
     )
 
     if not message:
         raise AlephNetworkError(
-            f"Message could not be read for item_hash {message.item_hash}"
+            f"Message could not be read for item_hash {item_hash}"
+        )
+
+    if not isinstance(message, PostMessage):
+        raise AlephNetworkError(
+            f"Message for item_hash {item_hash} is not a PostMessage"
         )
 
     return message

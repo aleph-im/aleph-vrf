@@ -84,7 +84,7 @@ async def assert_aleph_message_matches_vrf_response(
             vrf_response.message_hash, message_type=PostMessage
         )
 
-    message_vrf_response = VRFResponse.parse_obj(message.content.content)
+    message_vrf_response = VRFResponse.model_validate(message.content.content)
     assert_vrf_response_equal(message_vrf_response, vrf_response)
 
     return message
@@ -211,7 +211,6 @@ async def send_generate_requests_and_call_publish(
         )
         # We're only interested in one response for this test
         break
-
     return generate_response
 
 

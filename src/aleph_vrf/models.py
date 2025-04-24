@@ -6,7 +6,6 @@ import fastapi
 from aleph_message.models import ItemHash, PostMessage
 from aleph_message.models.abstract import HashableModel
 from pydantic import BaseModel, ValidationError
-from pydantic.generics import GenericModel
 from typing_extensions import TypeAlias
 
 from aleph_vrf.types import ExecutionId, Nonce, RequestId
@@ -225,7 +224,7 @@ class APIError(BaseModel):
     error: str
 
 
-class APIResponse(GenericModel, Generic[M]):
+class APIResponse(BaseModel, Generic[M]):
     data: M
 
 

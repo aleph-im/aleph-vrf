@@ -3,19 +3,20 @@ from typing import Optional
 from aleph.sdk.chains.common import get_fallback_private_key
 from aleph.sdk.chains.ethereum import ETHAccount
 from hexbytes import HexBytes
-from pydantic import BaseSettings, Field, HttpUrl
+from pydantic import Field, HttpUrl
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     API_HOST: HttpUrl = Field(
-        default="https://api3.aleph.im",
+        default=HttpUrl("https://api3.aleph.im"),
         description="URL of the reference aleph.im Core Channel Node.",
     )
-    CORECHANNEL_AGGREGATE_ADDRESS = Field(
+    CORECHANNEL_AGGREGATE_ADDRESS: str = Field(
         default="0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10",
         description="Address posting the `corechannel` aggregate.",
     )
-    CORECHANNEL_AGGREGATE_KEY = Field(
+    CORECHANNEL_AGGREGATE_KEY: str = Field(
         default="corechannel", description="Key for the `corechannel` aggregate."
     )
     FUNCTION: str = Field(
@@ -26,7 +27,7 @@ class Settings(BaseSettings):
         default=None,
         description="Address posting the `corechannel` aggregate.",
     )
-    VRF_AGGREGATE_KEY = Field(
+    VRF_AGGREGATE_KEY: str = Field(
         default="vrf", description="Key for the VRF aggregate."
     )
     NB_EXECUTORS: int = Field(default=16, description="Number of executors to use.")
@@ -45,11 +46,7 @@ class Settings(BaseSettings):
 
     def aleph_account(self) -> ETHAccount:
         return ETHAccount(self.private_key())
-
-    class Config:
-        env_prefix = "ALEPH_VRF_"
-        case_sensitive = False
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_prefix="ALEPH_VRF_", case_sensitive=False, env_file=".env")
 
 
 settings = Settings()

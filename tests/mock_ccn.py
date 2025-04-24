@@ -74,7 +74,7 @@ class PublicationStatus(BaseModel):
 
 class PubMessageResponse(BaseModel):
     publication_status: PublicationStatus
-    message_status: Optional[MessageStatus]
+    message_status: Optional[MessageStatus] = None
 
 
 def format_message(message_dict: Dict[str, Any]):
